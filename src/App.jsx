@@ -95,6 +95,16 @@ export default function App() {
     setPage("chat");
   };
 
+  const handleProfileUpdated = (updatedProfile) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      return {
+        ...currentUser,
+        profile: updatedProfile,
+      };
+    });
+  };
+
   if (loading) {
     return <div className="loading-page">Loading...</div>;
   }
@@ -163,7 +173,7 @@ export default function App() {
       </header>
       <div className="app-content">
         {page === "dating-profile" ? (
-          <DatingProfile user={user} />
+          <DatingProfile user={user} onProfileUpdated={handleProfileUpdated} />
         ) : page === "chat" ? (
           <Chat user={user} initialChatUser={chatTargetUser} />
         ) : page === "users" ? (

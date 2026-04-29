@@ -13,6 +13,7 @@ const getDefaultProfile = (username = "", age = "") => ({
   dealBreakers: "",
   favouriteProblemTopics: "",
   elo: "",
+  favouriteProblem: "",
 });
 
 export default function DatingProfile({ user, onProfileUpdated }) {
@@ -35,6 +36,7 @@ export default function DatingProfile({ user, onProfileUpdated }) {
         dealBreakers: user.profile.dealBreakers || "",
         favouriteProblemTopics: user.profile.favouriteProblemTopics || "",
         elo: user.profile.elo || "",
+        favouriteProblem: user.profile.favouriteProblem || "",
       });
     } else {
       setProfile(getDefaultProfile(user.username || "", user.age || ""));
@@ -72,6 +74,7 @@ export default function DatingProfile({ user, onProfileUpdated }) {
             dealBreakers: profile.dealBreakers,
             favouriteProblemTopics: profile.favouriteProblemTopics,
             elo: profile.elo,
+            favouriteProblem: profile.favouriteProblem,
           }
         })
       });
@@ -236,6 +239,17 @@ export default function DatingProfile({ user, onProfileUpdated }) {
                 rows={3}
               />
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="favourite-problem">Favourite Problem</label>
+            <textarea
+              id="favourite-problem"
+              value={profile.favouriteProblem}
+              onChange={(e) => updateField("favouriteProblem", e.target.value)}
+              placeholder="Example: Two Sum, Longest Substring Without Repeating Characters"
+              rows={3}
+            />
           </div>
 
           <div className="profile-actions">

@@ -112,7 +112,8 @@ def register():
                 'interests': '',
                 'dealBreakers': '',
                 'favouriteProblemTopics': '',
-                'elo': ''
+                'elo': '',
+                'favouriteProblem': ''
             }
         }
         
@@ -196,7 +197,7 @@ def update_profile(current_user):
         # Update only allowed fields
         allowed_fields = ['displayName', 'location', 'pronouns', 'occupation',
                          'relationshipGoal', 'bio', 'interests', 'dealBreakers',
-                         'favouriteProblemTopics', 'elo']
+                         'favouriteProblemTopics', 'elo', 'favouriteProblem']
         
         updated_profile = current_user.get('profile', {})
         for field in allowed_fields:

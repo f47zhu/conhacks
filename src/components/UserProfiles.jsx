@@ -85,70 +85,78 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
 
           {userProfile.age && <p className="age">Age: {userProfile.age}</p>}
 
-          {userProfile.profile?.location && userProfile.profile?.pronouns && (
-            <p className="field-row">
+          <p className="field-row" style={{ gridTemplateColumns: '1fr '.repeat(
+              !!userProfile.profile?.location + !!userProfile.profile?.pronouns +
+              !!userProfile.profile?.occupation + !!userProfile.profile?.relationshipGoal
+          ) }}>
+            {userProfile.profile?.location && (
               <p className="profile-field">
                 <strong>📍 Location:</strong> {userProfile.profile.location}
               </p>
+            )}
+            {userProfile.profile?.pronouns && (
               <p className="profile-field">
                 <strong>👥 Pronouns:</strong> {userProfile.profile.pronouns}
               </p>
-            </p>
-          )}
-          
-          {userProfile.profile?.location && !userProfile.profile?.pronouns && (
-            <p className="profile-field">
-              <strong>📍 Location:</strong> {userProfile.profile.location}
-            </p>
-          )}
-
-          {!userProfile.profile?.location && userProfile.profile?.pronouns && (
-            <p className="profile-field">
-              <strong>👥 Pronouns:</strong> {userProfile.profile.pronouns}
-            </p>
-          )}
-
-          {userProfile.profile?.occupation && userProfile.profile?.relationshipGoal && (
-            <p className="field-row">
+            )}
+            {userProfile.profile?.occupation && (
               <p className="profile-field">
                 <strong>💼 Occupation:</strong> {userProfile.profile.occupation}
               </p>
+            )}
+            {userProfile.profile?.relationshipGoal && (
               <p className="profile-field">
-                <strong>💕 Looking for:</strong> {userProfile.profile.relationshipGoal}
+                <strong>❤️ Relationship Goal:</strong> {userProfile.profile.relationshipGoal}
               </p>
-            </p>
-          )}
-
-          {userProfile.profile?.occupation && !userProfile.profile?.relationshipGoal && (
-            <p className="profile-field">
-              <strong>💼 Occupation:</strong> {userProfile.profile.occupation}
-            </p>
-          )}
-
-          {userProfile.profile?.relationshipGoal && !userProfile.profile?.occupation && (
-            <p className="profile-field">
-              <strong>💕 Looking for:</strong> {userProfile.profile.relationshipGoal}
-            </p>
-          )}
-
-          {userProfile.profile?.bio && (
-            <div className="profile-field bio-section">
-              <strong>Bio:</strong>
-              <p>{userProfile.profile.bio}</p>
-            </div>
-          )}
-          {userProfile.profile?.interests && (
-            <div className="profile-field interests-section">
-              <strong>Interests:</strong>
-              <p>{userProfile.profile.interests}</p>
-            </div>
-          )}
-          {userProfile.profile?.dealBreakers && (
-            <div className="profile-field dealbreakers-section">
-              <strong>Deal Breakers:</strong>
-              <p>{userProfile.profile.dealBreakers}</p>
-            </div>
-          )}
+            )}
+          </p>
+          
+          <div className="field-row" style={{ gridTemplateColumns: '1fr '.repeat(
+              !!userProfile.profile?.bio + !!userProfile.profile?.interests +
+              !!userProfile.profile?.dealBreakers
+          ) }}>
+            {userProfile.profile?.bio && (
+              <div className="profile-field bio-section">
+                <strong>Bio:</strong>
+                <p>{userProfile.profile.bio}</p>
+              </div>
+            )}
+            {userProfile.profile?.interests && (
+              <div className="profile-field interests-section">
+                <strong>Interests:</strong>
+                <p>{userProfile.profile.interests}</p>
+              </div>
+            )}
+            {userProfile.profile?.dealBreakers && (
+              <div className="profile-field dealbreakers-section">
+                <strong>Deal Breakers:</strong>
+                <p>{userProfile.profile.dealBreakers}</p>
+              </div>
+            )}
+          </div>
+          <div className="field-row" style={{ gridTemplateColumns: '1fr '.repeat(
+              !!userProfile.profile?.favouriteProblemTopics + !!userProfile.profile?.elo +
+              !!userProfile.profile?.favouriteProblem
+          ) }}>
+            {userProfile.profile?.favouriteProblemTopics && (
+              <div className="profile-field">
+                <strong>Favourite Problem Topics:</strong>
+                <p>{userProfile.profile.favouriteProblemTopics}</p>
+              </div>
+            )}
+            {userProfile.profile?.elo && (
+              <div className="profile-field">
+                <strong>Elo Rating / Coding Profiles:</strong>
+                <p>{userProfile.profile.elo}</p>
+              </div>
+            )}
+            {userProfile.profile?.favouriteProblem && (
+              <div className="profile-field">
+                <strong>Favourite Problem:</strong>
+                <p>{userProfile.profile.favouriteProblem}</p>
+              </div>
+            )}
+          </div>
           
           <div className="profile-stats">
             <div className="stat-item">
