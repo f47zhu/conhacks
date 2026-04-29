@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import "./DatingProfile.css";
 
-const DEFAULT_PROFILE = {
-  displayName: "",
+const getDefaultProfile = (username = "") => ({
+  displayName: username,
   age: "",
   location: "",
   pronouns: "",
@@ -11,25 +11,25 @@ const DEFAULT_PROFILE = {
   bio: "",
   interests: "",
   dealBreakers: "",
-};
+});
 
 export default function DatingProfile({ user }) {
   const storageKey = useMemo(() => `dating-profile-${user.id || user.username}`, [user.id, user.username]);
-  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  const [profile, setProfile] = useState(getDefaultProfile(user.username || ""));
   const [savedMessage, setSavedMessage] = useState("");
 
   useEffect(() => {
     const raw = localStorage.getItem(storageKey);
     if (!raw) {
-      setProfile({ ...DEFAULT_PROFILE, displayName: user.username || "" });
+      setProfile(getDefaultProfile(user.username || ""));
       return;
     }
 
     try {
       const parsed = JSON.parse(raw);
-      setProfile({ ...DEFAULT_PROFILE, ...parsed });
+      setProfile({ ...getDefaultProfile(user.username || ""), ...parsed });
     } catch (error) {
-      setProfile({ ...DEFAULT_PROFILE, displayName: user.username || "" });
+      setProfile(getDefaultProfile(user.username || ""));
     }
   }, [storageKey, user.username]);
 
@@ -58,7 +58,7 @@ export default function DatingProfile({ user }) {
                 id="displayName"
                 type="text"
                 value={profile.displayName}
-                onChange={(e) => updateField("displayName", e.target.value)}
+                onChange={(e) => updateField("displayName", e.target.value ? e.target.value : DEFAULT_PROFILE.displayName)}
                 placeholder="How should people see your name?"
               />
             </div>
@@ -150,7 +150,7 @@ export default function DatingProfile({ user }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="dealBreakers">Deal Breakers / Preferences</label>
+            <label htmlFor="dealBreakers">Deal Breakers / Personal Preferences</label>
             <textarea
               id="dealBreakers"
               value={profile.dealBreakers}
@@ -158,6 +158,32 @@ export default function DatingProfile({ user }) {
               placeholder="Optional: your important boundaries or preferences"
               rows={3}
             />
+          </div>
+
+          <hr /> {/* Coding info (non-vibed!) */}
+
+          <div className="field-row">
+            <div className="form-group">
+              <label htmlFor="favourite-problem-topics">Favourite Problem Topics</label>
+              <textarea
+                id="favourite-problem-topics"
+                value={profile.favouriteProblemTopics}
+                onChange={(e) => updateField("favouriteProblemTopics", e.target.value)}
+                placeholder="Examples: strings, data structures, dynamic programming"
+                rows={3}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="elo">Elo Rating / Coding Profiles</label>
+              <textarea
+                id="elo"
+                value={profile.elo}
+                onChange={(e) => updateField("elo", e.target.value)}
+                placeholder="Example: Codeforces 1500 (https://codeforces.com/profile/<username>), LeetCode 1200 (https://leetcode.com/u/<username>)"
+                rows={3}
+              />
+            </div>
           </div>
 
           <div className="profile-actions">
