@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./ProblemEditor.css";
 
 export default function ProblemEditor({ problem, onBack, user }) {
@@ -6,6 +6,47 @@ export default function ProblemEditor({ problem, onBack, user }) {
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState(null);
   const [activeTab, setActiveTab] = useState("description");
+  const [submissionHistory, setSubmissionHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
+
+  useEffect(() => {
+    fetchSubmissionHistory();
+  }, [problem._id]);
+
+  const fetchSubmissionHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `/api/submissions?problem_id=${encodeURIComponent(problem._id)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        setHistoryLoading(false);
+        return;
+      }
+
+      setSubmissionHistory(Array.isArray(data) ? data : []);
+      if (Array.isArray(data) && data.length > 0) {
+        setResults(data[0]);
+        setSelectedSubmissionId(data[0]._id);
+      } else {
+        setResults(null);
+        setSelectedSubmissionId(null);
+      }
+      setHistoryLoading(false);
+    } catch (error) {
+      console.error("Error fetching submission history:", error);
+      setHistoryLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -24,6 +65,10 @@ export default function ProblemEditor({ problem, onBack, user }) {
       });
       const data = await response.json();
       setResults(data);
+      if (data && !data.error) {
+        setSubmissionHistory((current) => [data, ...current]);
+        setSelectedSubmissionId(data._id || null);
+      }
       setActiveTab("results");
     } catch (error) {
       console.error("Error submitting solution:", error);
@@ -82,6 +127,47 @@ export default function ProblemEditor({ problem, onBack, user }) {
                   <div className="error-message">{results.error}</div>
                 ) : (
                   <>
+                    <div className="results-header-row">
+                      <h3>Saved Submissions</h3>
+                    </div>
+                    {historyLoading ? (
+                      <div className="loading-history">Loading submissions...</div>
+                    ) : submissionHistory.length > 0 ? (
+                      <div className="submission-history">
+                        {submissionHistory.map((submission, idx) => (
+                          <div
+                            key={submission._id || `${submission.submitted_at}-${idx}`}
+                            className={`submission-item ${
+                              selectedSubmissionId === submission._id ? "active" : ""
+                            }`}
+                          >
+                            <button
+                              className="submission-select-btn"
+                              onClick={() => {
+                                setResults(submission);
+                                setSelectedSubmissionId(submission._id || null);
+                              }}
+                            >
+                              <span>Run #{submissionHistory.length - idx}</span>
+                              <span>
+                                {submission.passed}/{submission.total} passed
+                              </span>
+                              <span>
+                                {submission.submitted_at
+                                  ? new Date(submission.submitted_at).toLocaleString()
+                                  : "Just now"}
+                              </span>
+                            </button>
+                            {submission.code && (
+                              <pre className="submission-code">{submission.code}</pre>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="loading-history">No previous submissions yet.</div>
+                    )}
+
                     <div className="result-summary">
                       <div className="result-stat">
                         <span className="label">Passed:</span>

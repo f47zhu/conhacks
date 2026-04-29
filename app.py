@@ -100,6 +100,18 @@ def register():
                 'solved': 0,
                 'attempts': 0,
                 'accepted': 0
+            },
+            'profile': {
+                'displayName': username,
+                'location': '',
+                'pronouns': '',
+                'occupation': '',
+                'relationshipGoal': '',
+                'bio': '',
+                'interests': '',
+                'dealBreakers': '',
+                'favouriteProblemTopics': '',
+                'elo': ''
             }
         }
         
@@ -166,7 +178,38 @@ def get_current_user(current_user):
             'username': current_user['username'],
             'email': current_user['email'],
             'age': current_user.get('age'),
-            'stats': current_user.get('stats', {})
+            'stats': current_user.get('stats', {}),
+            'profile': current_user.get('profile', {})
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/auth/profile', methods=['PUT'])
+@token_required
+def update_profile(current_user):
+    """Update user profile"""
+    try:
+        data = request.json
+        profile_data = data.get('profile', {})
+        
+        # Update only allowed fields
+        allowed_fields = ['displayName', 'location', 'pronouns', 'occupation',
+                         'relationshipGoal', 'bio', 'interests', 'dealBreakers',
+                         'favouriteProblemTopics', 'elo']
+        
+        updated_profile = current_user.get('profile', {})
+        for field in allowed_fields:
+            if field in profile_data:
+                updated_profile[field] = profile_data[field]
+        
+        users_collection.update_one(
+            {'_id': current_user['_id']},
+            {'$set': {'profile': updated_profile}}
+        )
+        
+        return jsonify({
+            'message': 'Profile updated successfully',
+            'profile': updated_profile
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -288,7 +331,135 @@ def submit_solution(current_user):
             'passed': passed,
             'failed': failed,
             'total': len(test_cases),
-            'results': results
+            'results': results,
+            'code': code,
+            'submitted_at': submission['submitted_at'].isoformat() + 'Z'
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/submissions', methods=['GET'])
+@token_required
+def get_submissions(current_user):
+    """Get current user's previous submissions, optionally filtered by problem_id"""
+    try:
+        problem_id = request.args.get('problem_id')
+
+        query = {'user_id': str(current_user['_id'])}
+        if problem_id:
+            query['problem_id'] = problem_id
+
+        submissions = list(submissions_collection.find(
+            query,
+            {
+                '_id': 1,
+                'problem_id': 1,
+                'code': 1,
+                'passed': 1,
+                'failed': 1,
+                'total': 1,
+                'results': 1,
+                'submitted_at': 1
+            }
+        ).sort('submitted_at', -1))
+
+        for submission in submissions:
+            submission['_id'] = str(submission['_id'])
+            submitted_at = submission.get('submitted_at')
+            if isinstance(submitted_at, datetime):
+                submission['submitted_at'] = submitted_at.isoformat() + 'Z'
+
+        return jsonify(submissions), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# User Profile Routes
+@app.route('/api/users/search', methods=['GET'])
+def search_users():
+    """Search for users by username"""
+    try:
+        query = request.args.get('q', '').strip()
+        limit = int(request.args.get('limit', 20))
+        
+        if not query or len(query) < 2:
+            return jsonify({'error': 'Search query must be at least 2 characters'}), 400
+        
+        # Search for users matching the query
+        users = list(users_collection.find(
+            {'username': {'$regex': query, '$options': 'i'}},
+            {
+                '_id': 1,
+                'username': 1,
+                'stats': 1,
+                'created_at': 1
+            }
+        ).limit(limit))
+        
+        # Convert ObjectIds to strings
+        for user in users:
+            user['_id'] = str(user['_id'])
+        
+        return jsonify(users), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/<user_id>/profile', methods=['GET'])
+def get_user_profile(user_id):
+    """Get a user's profile information"""
+    try:
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get user submission statistics
+        submissions = list(submissions_collection.find(
+            {'user_id': user_id},
+            {'results': 1, 'submitted_at': 1}
+        ))
+        
+        # Calculate stats
+        total_submissions = len(submissions)
+        unique_problems_solved = len(set(s['problem_id'] for s in submissions_collection.find(
+            {'user_id': user_id, 'passed': {'$eq': submissions_collection.count_documents({})}}
+        )))
+        
+        profile = {
+            'id': str(user['_id']),
+            'username': user['username'],
+            'created_at': user.get('created_at'),
+            'stats': user.get('stats', {'solved': 0, 'attempts': 0, 'accepted': 0}),
+            'total_submissions': total_submissions,
+            'age': user.get('age', None),
+            'profile': user.get('profile', {})
+        }
+        
+        return jsonify(profile), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/users/leaderboard', methods=['GET'])
+def get_leaderboard():
+    """Get leaderboard of top users by problems solved"""
+    try:
+        limit = int(request.args.get('limit', 20))
+        
+        users = list(users_collection.find(
+            {},
+            {
+                '_id': 1,
+                'username': 1,
+                'stats': 1,
+                'created_at': 1
+            }
+        ).sort('stats.solved', -1).limit(limit))
+        
+        # Convert ObjectIds to strings and add rank
+        leaderboard = []
+        for i, user in enumerate(users, 1):
+            user['_id'] = str(user['_id'])
+            user['rank'] = i
+            leaderboard.append(user)
+        
+        return jsonify(leaderboard), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

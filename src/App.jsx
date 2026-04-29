@@ -5,6 +5,7 @@ import ProblemEditor from "./components/ProblemEditor";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import DatingProfile from "./components/DatingProfile";
+import UserProfiles from "./components/UserProfiles";
 import logo from "./assets/logo.png";
 
 export default function App() {
@@ -12,7 +13,7 @@ export default function App() {
   const [selectedProblem, setSelectedProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState('problems'); // 'problems', 'dating-profile', 'login', 'register'
+  const [page, setPage] = useState('problems'); // 'problems', 'users', 'dating-profile', 'login', 'register'
 
   useEffect(() => {
     // Check if user is logged in (token in localStorage)
@@ -119,6 +120,15 @@ export default function App() {
               Problems
             </button>
             <button
+              className={`nav-btn ${page === "users" ? "active" : ""}`}
+              onClick={() => {
+                setPage("users");
+                setSelectedProblem(null);
+              }}
+            >
+              Users
+            </button>
+            <button
               className={`nav-btn ${page === "dating-profile" ? "active" : ""}`}
               onClick={() => {
                 setPage("dating-profile");
@@ -137,6 +147,8 @@ export default function App() {
       <div className="app-content">
         {page === "dating-profile" ? (
           <DatingProfile user={user} />
+        ) : page === "users" ? (
+          <UserProfiles />
         ) : selectedProblem ? (
           <ProblemEditor
             problem={selectedProblem}

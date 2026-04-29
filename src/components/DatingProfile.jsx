@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./DatingProfile.css";
 
 const getDefaultProfile = (username = "", age = "") => ({
@@ -11,27 +11,35 @@ const getDefaultProfile = (username = "", age = "") => ({
   bio: "",
   interests: "",
   dealBreakers: "",
+  favouriteProblemTopics: "",
+  elo: "",
 });
 
-export default function DatingProfile({ user }) {
-  const storageKey = useMemo(() => `dating-profile-${user.id || user.username}`, [user.id, user.username]);
-  const [profile, setProfile] = useState(getDefaultProfile(user.username || ""));
+export default function DatingProfile({ user, onProfileUpdated }) {
+  const [profile, setProfile] = useState(getDefaultProfile(user.username || "", user.age || ""));
   const [savedMessage, setSavedMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) {
+    // Load profile from user object (stored in MongoDB)
+    if (user.profile) {
+      setProfile({
+        displayName: user.profile.displayName || user.username,
+        age: user.age || "",
+        location: user.profile.location || "",
+        pronouns: user.profile.pronouns || "",
+        occupation: user.profile.occupation || "",
+        relationshipGoal: user.profile.relationshipGoal || "",
+        bio: user.profile.bio || "",
+        interests: user.profile.interests || "",
+        dealBreakers: user.profile.dealBreakers || "",
+        favouriteProblemTopics: user.profile.favouriteProblemTopics || "",
+        elo: user.profile.elo || "",
+      });
+    } else {
       setProfile(getDefaultProfile(user.username || "", user.age || ""));
-      return;
     }
-
-    try {
-      const parsed = JSON.parse(raw);
-      setProfile({ ...getDefaultProfile(user.username || "", user.age || ""), ...parsed });
-    } catch (error) {
-      setProfile(getDefaultProfile(user.username || "", user.age || ""));
-    }
-  }, [storageKey, user.username, user.age]);
+  }, [user]);
 
   const updateField = (field, value) => {
     if (field === "age" && value === "") {
@@ -40,11 +48,52 @@ export default function DatingProfile({ user }) {
     setProfile((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    localStorage.setItem(storageKey, JSON.stringify(profile));
-    setSavedMessage("Profile saved.");
-    window.setTimeout(() => setSavedMessage(""), 2500);
+    setLoading(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          profile: {
+            displayName: profile.displayName,
+            location: profile.location,
+            pronouns: profile.pronouns,
+            occupation: profile.occupation,
+            relationshipGoal: profile.relationshipGoal,
+            bio: profile.bio,
+            interests: profile.interests,
+            dealBreakers: profile.dealBreakers,
+            favouriteProblemTopics: profile.favouriteProblemTopics,
+            elo: profile.elo,
+          }
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (onProfileUpdated && data.profile) {
+          onProfileUpdated(data.profile);
+        }
+        setSavedMessage("Profile saved.");
+        window.setTimeout(() => setSavedMessage(""), 2500);
+      } else {
+        setSavedMessage("Failed to save profile.");
+        window.setTimeout(() => setSavedMessage(""), 2500);
+      }
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      setSavedMessage("Error saving profile.");
+      window.setTimeout(() => setSavedMessage(""), 2500);
+    }
+    
+    setLoading(false);
   };
 
   return (
@@ -61,7 +110,7 @@ export default function DatingProfile({ user }) {
                 id="displayName"
                 type="text"
                 value={profile.displayName}
-                onChange={(e) => updateField("displayName", e.target.value ? e.target.value : DEFAULT_PROFILE.displayName)}
+                onChange={(e) => updateField("displayName", e.target.value || user.username || "")}
                 placeholder="How should people see your name?"
               />
             </div>
