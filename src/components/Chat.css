@@ -1,0 +1,138 @@
+.chat-page {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  height: 100%;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.chat-sidebar {
+  border-right: 1px solid #eee;
+  padding: 14px;
+  overflow: auto;
+}
+
+.chat-search {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.chat-search input {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.search-results,
+.conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-user-btn,
+.conversation-btn {
+  border: 1px solid #e5e5e5;
+  background: #fff;
+  text-align: left;
+  padding: 10px;
+  border-radius: 6px;
+}
+
+.conversation-btn.active {
+  border-color: #1677ff;
+  background: #f0f7ff;
+}
+
+.conversation-name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.conversation-preview {
+  color: #666;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-header {
+  padding: 14px;
+  border-bottom: 1px solid #eee;
+  font-weight: 600;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fafafa;
+}
+
+.message-item {
+  max-width: 75%;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #eee;
+}
+
+.message-item.mine {
+  align-self: flex-end;
+  background: #e6f4ff;
+  border-color: #91caff;
+}
+
+.message-item p {
+  margin: 0 0 6px;
+}
+
+.message-item span {
+  font-size: 11px;
+  color: #777;
+}
+
+.chat-input-row {
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+}
+
+.chat-input-row input {
+  flex: 1;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.chat-empty {
+  margin: auto;
+  color: #666;
+}
+
+@media (max-width: 900px) {
+  .chat-page {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-sidebar {
+    border-right: none;
+    border-bottom: 1px solid #eee;
+    max-height: 42vh;
+  }
+}

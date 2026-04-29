@@ -26,6 +26,7 @@ db = client['coding_judge']
 problems_collection = db['problems']
 submissions_collection = db['submissions']
 users_collection = db['users']
+messages_collection = db['messages']
 
 # Authentication Decorator
 def token_required(f):
@@ -370,6 +371,144 @@ def get_submissions(current_user):
                 submission['submitted_at'] = submitted_at.isoformat() + 'Z'
 
         return jsonify(submissions), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chat/conversations', methods=['GET'])
+@token_required
+def get_conversations(current_user):
+    """Get current user's chat conversations with last message preview"""
+    try:
+        user_id = str(current_user['_id'])
+        pipeline = [
+            {
+                '$match': {
+                    '$or': [{'sender_id': user_id}, {'receiver_id': user_id}]
+                }
+            },
+            {'$sort': {'created_at': -1}},
+            {
+                '$project': {
+                    'sender_id': 1,
+                    'receiver_id': 1,
+                    'content': 1,
+                    'created_at': 1,
+                    'other_user_id': {
+                        '$cond': [{'$eq': ['$sender_id', user_id]}, '$receiver_id', '$sender_id']
+                    }
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$other_user_id',
+                    'last_message': {'$first': '$content'},
+                    'created_at': {'$first': '$created_at'}
+                }
+            },
+            {'$sort': {'created_at': -1}}
+        ]
+
+        conversations = list(messages_collection.aggregate(pipeline))
+        user_ids = []
+        for conversation in conversations:
+            user_ids.append(ObjectId(conversation['_id']))
+
+        users = {}
+        if user_ids:
+            for user in users_collection.find({'_id': {'$in': user_ids}}, {'username': 1}):
+                users[str(user['_id'])] = user.get('username', 'Unknown')
+
+        result = []
+        for conversation in conversations:
+            other_user_id = conversation['_id']
+            result.append({
+                'user_id': other_user_id,
+                'username': users.get(other_user_id, 'Unknown'),
+                'last_message': conversation.get('last_message', ''),
+                'created_at': conversation.get('created_at').isoformat() + 'Z' if conversation.get('created_at') else None
+            })
+
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chat/messages/<other_user_id>', methods=['GET'])
+@token_required
+def get_chat_messages(current_user, other_user_id):
+    """Get message history between current user and another user"""
+    try:
+        current_user_id = str(current_user['_id'])
+        other_user = users_collection.find_one({'_id': ObjectId(other_user_id)}, {'username': 1})
+        if not other_user:
+            return jsonify({'error': 'User not found'}), 404
+
+        messages = list(messages_collection.find(
+            {
+                '$or': [
+                    {'sender_id': current_user_id, 'receiver_id': other_user_id},
+                    {'sender_id': other_user_id, 'receiver_id': current_user_id}
+                ]
+            },
+            {
+                '_id': 1,
+                'sender_id': 1,
+                'receiver_id': 1,
+                'content': 1,
+                'created_at': 1
+            }
+        ).sort('created_at', 1))
+
+        for message in messages:
+            message['_id'] = str(message['_id'])
+            message['created_at'] = message['created_at'].isoformat() + 'Z'
+
+        return jsonify({
+            'other_user': {
+                'id': other_user_id,
+                'username': other_user.get('username')
+            },
+            'messages': messages
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chat/messages', methods=['POST'])
+@token_required
+def send_chat_message(current_user):
+    """Send a chat message to another user"""
+    try:
+        data = request.json
+        receiver_id = data.get('receiver_id')
+        content = (data.get('content') or '').strip()
+
+        if not receiver_id or not content:
+            return jsonify({'error': 'receiver_id and content are required'}), 400
+
+        if receiver_id == str(current_user['_id']):
+            return jsonify({'error': 'Cannot message yourself'}), 400
+
+        receiver_user = users_collection.find_one({'_id': ObjectId(receiver_id)}, {'_id': 1})
+        if not receiver_user:
+            return jsonify({'error': 'Receiver not found'}), 404
+
+        if len(content) > 2000:
+            return jsonify({'error': 'Message too long (max 2000 characters)'}), 400
+
+        message = {
+            'sender_id': str(current_user['_id']),
+            'receiver_id': receiver_id,
+            'content': content,
+            'created_at': datetime.utcnow()
+        }
+        result = messages_collection.insert_one(message)
+
+        return jsonify({
+            '_id': str(result.inserted_id),
+            'sender_id': message['sender_id'],
+            'receiver_id': message['receiver_id'],
+            'content': message['content'],
+            'created_at': message['created_at'].isoformat() + 'Z'
+        }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

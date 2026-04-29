@@ -6,6 +6,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import DatingProfile from "./components/DatingProfile";
 import UserProfiles from "./components/UserProfiles";
+import Chat from "./components/Chat";
 import logo from "./assets/logo.png";
 
 export default function App() {
@@ -13,7 +14,8 @@ export default function App() {
   const [selectedProblem, setSelectedProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState('problems'); // 'problems', 'users', 'dating-profile', 'login', 'register'
+  const [page, setPage] = useState('problems'); // 'problems', 'users', 'chat', 'dating-profile', 'login', 'register'
+  const [chatTargetUser, setChatTargetUser] = useState(null);
 
   useEffect(() => {
     // Check if user is logged in (token in localStorage)
@@ -87,6 +89,12 @@ export default function App() {
     setSelectedProblem(null);
   };
 
+  const handleStartChatWithUser = (targetUser) => {
+    setChatTargetUser(targetUser);
+    setSelectedProblem(null);
+    setPage("chat");
+  };
+
   if (loading) {
     return <div className="loading-page">Loading...</div>;
   }
@@ -129,6 +137,15 @@ export default function App() {
               Users
             </button>
             <button
+              className={`nav-btn ${page === "chat" ? "active" : ""}`}
+              onClick={() => {
+                setPage("chat");
+                setSelectedProblem(null);
+              }}
+            >
+              Chat
+            </button>
+            <button
               className={`nav-btn ${page === "dating-profile" ? "active" : ""}`}
               onClick={() => {
                 setPage("dating-profile");
@@ -147,8 +164,13 @@ export default function App() {
       <div className="app-content">
         {page === "dating-profile" ? (
           <DatingProfile user={user} />
+        ) : page === "chat" ? (
+          <Chat user={user} initialChatUser={chatTargetUser} />
         ) : page === "users" ? (
-          <UserProfiles />
+          <UserProfiles
+            currentUserId={user.id}
+            onStartChatWithUser={handleStartChatWithUser}
+          />
         ) : selectedProblem ? (
           <ProblemEditor
             problem={selectedProblem}

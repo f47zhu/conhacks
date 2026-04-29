@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "./UserProfiles.css";
 
-export default function UserProfiles() {
+export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -186,6 +186,22 @@ export default function UserProfiles() {
             Member since{" "}
             {new Date(userProfile.created_at).toLocaleDateString()}
           </p>
+          {userProfile.id !== currentUserId && (
+            <>
+            <br />
+              <button
+                className="search-btn"
+                onClick={() =>
+                  onStartChatWithUser({
+                    id: userProfile.id,
+                    username: userProfile.username,
+                  })
+                }
+              >
+                Message {userProfile.username}
+              </button>
+            </>
+          )}
         </div>
       </div>
     );
