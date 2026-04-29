@@ -1,0 +1,90 @@
+.dating-profile-page {
+  display: flex;
+  justify-content: center;
+}
+
+.dating-profile-card {
+  width: 100%;
+  max-width: 900px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dating-profile-card h2 {
+  margin-bottom: 8px;
+}
+
+.dating-profile-subtitle {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.dating-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-profile-btn {
+  background: #1677ff;
+  color: #fff;
+}
+
+.saved-message {
+  font-size: 13px;
+  color: #237804;
+}
+
+@media (max-width: 768px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dating-profile-card {
+    padding: 18px;
+  }
+}

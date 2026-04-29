@@ -28,10 +28,41 @@ body {
   align-items: center;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .app-header h1 {
   font-size: 24px;
   font-weight: 600;
   margin: 0;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  background-color: #1890ff;
+  border-radius: 4px;
+}
+
+.main-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.nav-btn {
+  background: transparent;
+  color: #d9d9d9;
+  border: 1px solid #434343;
+  padding: 8px 12px;
+}
+
+.nav-btn.active {
+  color: #fff;
+  border-color: #1677ff;
+  background: rgba(22, 119, 255, 0.2);
 }
 
 .user-section {

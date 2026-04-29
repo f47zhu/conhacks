@@ -4,13 +4,15 @@ import ProblemsList from "./components/ProblemsList";
 import ProblemEditor from "./components/ProblemEditor";
 import Login from "./components/Login";
 import Register from "./components/Register";
+import DatingProfile from "./components/DatingProfile";
+import logo from "./assets/logo.png";
 
 export default function App() {
   const [problems, setProblems] = useState([]);
   const [selectedProblem, setSelectedProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState('problems'); // 'problems', 'login', 'register'
+  const [page, setPage] = useState('problems'); // 'problems', 'dating-profile', 'login', 'register'
 
   useEffect(() => {
     // Check if user is logged in (token in localStorage)
@@ -103,14 +105,39 @@ export default function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>Coode</h1>
+        <div className="header-left">
+          <img src={logo} alt="Coode Logo" className="logo" />
+          <h1>Coode</h1>
+          <nav className="main-nav">
+            <button
+              className={`nav-btn ${page === "problems" ? "active" : ""}`}
+              onClick={() => {
+                setPage("problems");
+                setSelectedProblem(null);
+              }}
+            >
+              Problems
+            </button>
+            <button
+              className={`nav-btn ${page === "dating-profile" ? "active" : ""}`}
+              onClick={() => {
+                setPage("dating-profile");
+                setSelectedProblem(null);
+              }}
+            >
+              Profile
+            </button>
+          </nav>
+        </div>
         <div className="user-section">
           <span className="username">{user.username}</span>
           <button className="logout-btn" onClick={handleLogout}>Logout</button>
         </div>
       </header>
       <div className="app-content">
-        {selectedProblem ? (
+        {page === "dating-profile" ? (
+          <DatingProfile user={user} />
+        ) : selectedProblem ? (
           <ProblemEditor
             problem={selectedProblem}
             onBack={() => setSelectedProblem(null)}
