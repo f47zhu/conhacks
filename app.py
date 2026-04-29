@@ -63,11 +63,20 @@ def register():
         data = request.json
         username = data.get('username')
         email = data.get('email')
+        age = data.get('age')
         password = data.get('password')
         
         # Validation
-        if not username or not email or not password:
+        if not username or not email or age is None or not password:
             return jsonify({'error': 'Missing required fields'}), 400
+
+        try:
+            age = int(age)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Age must be a valid number'}), 400
+
+        if age < 18:
+            return jsonify({'error': 'Age must be at least 18'}), 400
         
         if len(password) < 6:
             return jsonify({'error': 'Password must be at least 6 characters'}), 400
@@ -84,6 +93,7 @@ def register():
         user = {
             'username': username,
             'email': email,
+            'age': age,
             'password': hashed_password,
             'created_at': datetime.utcnow(),
             'stats': {
@@ -106,7 +116,8 @@ def register():
             'user': {
                 'id': str(result.inserted_id),
                 'username': username,
-                'email': email
+                'email': email,
+                'age': age
             }
         }), 201
     except Exception as e:
@@ -138,7 +149,8 @@ def login():
             'user': {
                 'id': str(user['_id']),
                 'username': user['username'],
-                'email': user['email']
+                'email': user['email'],
+                'age': user.get('age')
             }
         }), 200
     except Exception as e:
@@ -153,6 +165,7 @@ def get_current_user(current_user):
             'id': str(current_user['_id']),
             'username': current_user['username'],
             'email': current_user['email'],
+            'age': current_user.get('age'),
             'stats': current_user.get('stats', {})
         }), 200
     except Exception as e:

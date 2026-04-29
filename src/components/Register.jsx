@@ -4,6 +4,7 @@ import "./Auth.css";
 export default function Register({ onRegister, onSwitchToLogin }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [age, setAge] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,8 +15,14 @@ export default function Register({ onRegister, onSwitchToLogin }) {
     setError("");
 
     // Validation
-    if (!username || !email || !password || !confirmPassword) {
+    if (!username || !email || !age || !password || !confirmPassword) {
       setError("All fields are required");
+      return;
+    }
+
+    const parsedAge = Number.parseInt(age, 10);
+    if (Number.isNaN(parsedAge) || parsedAge < 18) {
+      setError("Age must be a number and at least 18");
       return;
     }
 
@@ -42,7 +49,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email, age: parsedAge, password }),
       });
 
       const data = await response.json();
@@ -85,6 +92,19 @@ export default function Register({ onRegister, onSwitchToLogin }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="age">Age</label>
+            <input
+              id="age"
+              type="number"
+              min="18"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              placeholder="Enter your age"
               disabled={loading}
             />
           </div>

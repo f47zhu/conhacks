@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import "./DatingProfile.css";
 
-const getDefaultProfile = (username = "") => ({
+const getDefaultProfile = (username = "", age = "") => ({
   displayName: username,
-  age: "",
+  age: age,
   location: "",
   pronouns: "",
   occupation: "",
@@ -21,19 +21,22 @@ export default function DatingProfile({ user }) {
   useEffect(() => {
     const raw = localStorage.getItem(storageKey);
     if (!raw) {
-      setProfile(getDefaultProfile(user.username || ""));
+      setProfile(getDefaultProfile(user.username || "", user.age || ""));
       return;
     }
 
     try {
       const parsed = JSON.parse(raw);
-      setProfile({ ...getDefaultProfile(user.username || ""), ...parsed });
+      setProfile({ ...getDefaultProfile(user.username || "", user.age || ""), ...parsed });
     } catch (error) {
-      setProfile(getDefaultProfile(user.username || ""));
+      setProfile(getDefaultProfile(user.username || "", user.age || ""));
     }
-  }, [storageKey, user.username]);
+  }, [storageKey, user.username, user.age]);
 
   const updateField = (field, value) => {
+    if (field === "age" && value === "") {
+      return;
+    }
     setProfile((current) => ({ ...current, [field]: value }));
   };
 
