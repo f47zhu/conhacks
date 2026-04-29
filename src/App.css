@@ -23,11 +23,41 @@ body {
   color: white;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .app-header h1 {
   font-size: 24px;
   font-weight: 600;
+  margin: 0;
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.username {
+  font-size: 14px;
+  color: #ccc;
+}
+
+.logout-btn {
+  background-color: #f5222d;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.logout-btn:hover {
+  background-color: #cf1322;
 }
 
 .app-content {

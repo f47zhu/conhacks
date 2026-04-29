@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./ProblemEditor.css";
 
-export default function ProblemEditor({ problem, onBack }) {
+export default function ProblemEditor({ problem, onBack, user }) {
   const [code, setCode] = useState("def solution():\n    pass\n");
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState(null);
@@ -10,10 +10,12 @@ export default function ProblemEditor({ problem, onBack }) {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      const token = localStorage.getItem('token');
       const response = await fetch("/api/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
           problem_id: problem._id,
