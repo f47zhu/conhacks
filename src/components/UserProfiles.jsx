@@ -3,6 +3,7 @@ import "./UserProfiles.css";
 
 export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [lastSearchQuery, setLastSearchQuery] = useState("");
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
@@ -33,12 +34,14 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+    if (!searchQuery.trim()) return;
+    const submittedQuery = searchQuery.trim();
+    setLastSearchQuery(submittedQuery);
 
     try {
       setLoading(true);
       const response = await fetch(
-        `/api/users/search?q=${encodeURIComponent(searchQuery)}`
+        `/api/users/search?q=${encodeURIComponent(submittedQuery)}`
       );
       const data = await response.json();
       setUsers(data);
@@ -312,7 +315,7 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
           <form onSubmit={handleSearch} className="search-form">
             <input
               type="text"
-              placeholder="Search by username (min 2 characters)..."
+              placeholder="Search by username..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="search-input"
@@ -344,9 +347,9 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
             </div>
           )}
 
-          {!loading && searchQuery && users.length === 0 && (
+          {!loading && lastSearchQuery && users.length === 0 && (
             <div className="no-results">
-              No users found matching "{searchQuery}"
+              No users found matching "{lastSearchQuery}"
             </div>
           )}
         </div>

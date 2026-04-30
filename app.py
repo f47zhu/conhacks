@@ -545,8 +545,8 @@ def search_users():
         query = request.args.get('q', '').strip()
         limit = int(request.args.get('limit', 20))
         
-        if not query or len(query) < 2:
-            return jsonify({'error': 'Search query must be at least 2 characters'}), 400
+        if not query:
+            return jsonify({'error': 'Search query is required'}), 400
         
         # Search for users matching the query
         users = list(users_collection.find(
