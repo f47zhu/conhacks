@@ -35,7 +35,22 @@ together_games_collection = db['together_games']
 
 # Gemini configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_API_VERSION = os.getenv("GEMINI_API_VERSION", "v1")
+
+def _normalize_gemini_model(model):
+    """
+    Accepts either:
+      - "gemini-2.5-flash"
+      - "models/gemini-2.5-flash"
+    Returns the model id without the "models/" prefix.
+    """
+    if not model:
+        return ""
+    model = str(model).strip()
+    if model.startswith("models/"):
+        return model[len("models/"):]
+    return model
 
 def _safe_iso(dt):
     if not dt:
@@ -48,9 +63,15 @@ def _call_gemini_generate_content(prompt_text):
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not set")
 
+    model_id = _normalize_gemini_model(GEMINI_MODEL)
+    if not model_id:
+        raise RuntimeError("GEMINI_MODEL is not set")
+
     url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        + GEMINI_MODEL
+        "https://generativelanguage.googleapis.com/"
+        + GEMINI_API_VERSION
+        + "/models/"
+        + model_id
         + ":generateContent?key="
         + GEMINI_API_KEY
     )
@@ -75,9 +96,20 @@ def _call_gemini_generate_content(prompt_text):
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        body = resp.read().decode("utf-8")
-        return json.loads(body)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode("utf-8")
+            return json.loads(body)
+    except urllib.error.HTTPError as e:
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            err_body = ""
+        raise RuntimeError(f"Gemini HTTP {getattr(e, 'code', 'unknown')}: {err_body or str(e)}")
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Gemini connection error: {str(e)}")
+    except Exception as e:
+        raise RuntimeError(f"Gemini unexpected error: {str(e)}")
 
 def _extract_gemini_text(resp_json):
     try:
@@ -1167,6 +1199,38 @@ def cancel_together_game(current_user, game_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/together/<game_id>/analysis/retry', methods=['PUT'])
+@token_required
+def retry_together_analysis(current_user, game_id):
+    """Retry Gemini analysis for a finished (both-solved) game when analysis is missing/errored."""
+    try:
+        game = together_games_collection.find_one({'_id': ObjectId(game_id)})
+        if not game:
+            return jsonify({'error': 'Game not found'}), 404
+
+        user_id = str(current_user['_id'])
+        if user_id not in (game.get('players') or {}):
+            return jsonify({'error': 'You are not part of this game'}), 403
+
+        if (game.get("status") or "active") == "cancelled":
+            return jsonify({'error': 'Game was cancelled'}), 409
+
+        players = game.get("players") or {}
+        both_solved = all(p.get('solved') for p in players.values()) if players else False
+        if not both_solved:
+            return jsonify({'error': 'Both players must solve before analysis can run'}), 409
+
+        # Clear error state so lock can be acquired cleanly.
+        together_games_collection.update_one(
+            {'_id': ObjectId(game_id)},
+            {'$unset': {'analysis_error': ''}, '$set': {'analysis_status': None}}
+        )
+
+        _ensure_duo_analysis_async(game_id)
+        return jsonify({'message': 'Retry queued'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/together/<game_id>/status', methods=['GET'])
 @token_required
 def get_together_status(current_user, game_id):
@@ -1189,6 +1253,7 @@ def get_together_status(current_user, game_id):
             'cancelled_at': game.get('cancelled_at').isoformat() + 'Z' if game.get('cancelled_at') else None,
             'cancelled_by': game.get('cancelled_by'),
             'analysis_status': game.get('analysis_status'),
+            'analysis_error': game.get('analysis_error'),
             'analysis': None
         }
 

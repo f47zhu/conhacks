@@ -373,7 +373,7 @@ export default function Chat({ user, initialChatUser }) {
                     <p><strong>Duo</strong></p>
                     <p><i>{message.meta.problem_title || "Random Problem"}</i></p>
                     <p><i>Status: {statusText}</i></p>
-                    <p><b><a href={message.meta.invite_url}>Open challenge</a></b></p>
+                    <p><b><a href={message.meta.invite_url} target="_blank">Open challenge</a></b></p>
                     {analysisStatus === "generating" && (
                       <p className="muted"><i>Analysis: generating…</i></p>
                     )}

@@ -16,6 +16,7 @@ export default function TogetherSolve({ user, onExit }) {
   const [gameLoaded, setGameLoaded] = useState(false);
   const [analysisStatus, setAnalysisStatus] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [analysisError, setAnalysisError] = useState(null);
   const [gameStatus, setGameStatus] = useState("active");
   const [cancelledBy, setCancelledBy] = useState(null);
 
@@ -189,6 +190,7 @@ export default function TogetherSolve({ user, onExit }) {
         setGameStatus(data.game_status || "active");
         setCancelledBy(data.cancelled_by || null);
         setAnalysisStatus(data.analysis_status || null);
+        setAnalysisError(data.analysis_error || null);
         setAnalysis(data.analysis || null);
         const currentUserId = String(user?.id || "");
 
@@ -445,7 +447,40 @@ export default function TogetherSolve({ user, onExit }) {
           ) : analysisStatus === "generating" ? (
             <p className="muted">Generating analysis…</p>
           ) : analysisStatus === "error" ? (
-            <p className="muted">Analysis failed to generate.</p>
+            <p className="muted">
+              Analysis failed to generate.
+              {analysisError ? (
+                <span style={{ display: "block", marginTop: 6, whiteSpace: "pre-wrap" }}>
+                  <strong>Error:</strong> {analysisError}
+                </span>
+              ) : null}
+              {solvedTimeMs !== null && opponentStatus?.solved ? (
+                <span style={{ display: "block", marginTop: 10 }}>
+                  <button
+                    className="secondary"
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch(`/api/together/${gameId}/analysis/retry`, {
+                          method: "PUT",
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) {
+                          setSubmitStatus(data.error || "Unable to retry analysis.");
+                          return;
+                        }
+                        setSubmitStatus("Retry queued.");
+                        setAnalysisStatus("generating");
+                      } catch (e) {
+                        setSubmitStatus("Unable to retry analysis.");
+                      }
+                    }}
+                  >
+                    Retry analysis
+                  </button>
+                </span>
+              ) : null}
+            </p>
           ) : (
             <p className="muted">Analysis will appear once both players solve.</p>
           )}
