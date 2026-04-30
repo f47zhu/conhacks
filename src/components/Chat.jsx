@@ -361,14 +361,14 @@ export default function Chat({ user, initialChatUser }) {
                 const analysis = message.meta?.analysis || null;
                 const analysisSummary =
                   analysis?.solve_times?.summary ||
-                  analysis?.overall?.verdict ||
+                  analysis?.coding_style?.comparison?.romantic_verdict ||
                   analysis?.text ||
                   null;
 
                 return (
                   <div
                     key={message._id}
-                    className={`message-item ${message.sender_id === user.id ? "mine" : "theirs"}`}
+                    className="message-item duo"
                   >
                     <p><strong>Duo</strong></p>
                     <p><i>{message.meta.problem_title || "Random Problem"}</i></p>
@@ -379,7 +379,7 @@ export default function Chat({ user, initialChatUser }) {
                     )}
                     {analysisStatus === "done" && analysisSummary && (
                       <div className="result-box" style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
-                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Gemini Analysis</div>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Cupid's Analysis</div>
                         <div>{analysisSummary}</div>
                       </div>
                     )}

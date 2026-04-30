@@ -127,6 +127,59 @@ def _extract_gemini_text(resp_json):
     except Exception:
         return ""
 
+def _try_parse_json(text):
+    """
+    Best-effort JSON extraction/parsing for model outputs.
+    Handles common cases:
+      - output wrapped in ```json ... ```
+      - extra prose before/after the JSON
+    """
+    if not text or not isinstance(text, str):
+        return None
+
+    s = text.strip()
+
+    # Strip fenced code blocks if present
+    if s.startswith("```"):
+        lines = s.splitlines()
+        # Drop opening fence line
+        lines = lines[1:]
+        # Drop closing fence line if present
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        s = "\n".join(lines).strip()
+
+    # Try direct parse first
+    try:
+        return json.loads(s)
+    except Exception:
+        pass
+
+    # Extract first JSON object/array by braces
+    first_obj = s.find("{")
+    first_arr = s.find("[")
+    if first_obj == -1 and first_arr == -1:
+        return None
+
+    start = first_obj if first_obj != -1 else first_arr
+    if first_obj != -1 and first_arr != -1:
+        start = min(first_obj, first_arr)
+
+    end_obj = s.rfind("}")
+    end_arr = s.rfind("]")
+    end = end_obj if end_obj != -1 else end_arr
+    if end_obj != -1 and end_arr != -1:
+        end = max(end_obj, end_arr)
+
+    if start >= 0 and end > start:
+        candidate = s[start : end + 1].strip()
+        try:
+            return json.loads(candidate)
+        except Exception:
+            return None
+
+    return None
+
 def _compute_duo_users_and_solve_times(game):
     host_id = str(game.get("host_id"))
     guest_id = str(game.get("guest_id"))
@@ -212,7 +265,7 @@ def _build_duo_analysis_prompt(problem, game):
 
     # Keep prompt deterministic and structured. Ask for strict JSON to store + render.
     return f"""
-You are a coding coach playing Cupid to analyze two partners' solutions to the same coding problem.
+You're a playful Cupid analyzing two partners' solutions to the same coding problem.
 Return STRICT JSON only (no markdown/code fences).
 Schema:
 {{
@@ -221,20 +274,15 @@ Schema:
       "approach": "<DP, greedy, etc>",
       "time_complexity": "<Big-O>",
       "space_complexity": "<Big-O>",
-      "strengths": ["<feedback>", ...],
-      "improvements": ["<feedback>", ...]
+      "summary": "<single sentence>",
     }},
     "guest": {{
-      <same 5 fields as host>
+      <same 4 fields as host>
     }},
     "comparison": {{
       "key_differences": ["<feedback>", ...],
-      "best_practices": ["<feedback>", ...]
+      "romantic_verdict": "<1-2 sentences>"
     }}
-  }},
-  "overall": {{
-    "verdict": "<1 sentence>",
-    "next_time_suggestions": ["<feedback>", ...]
   }}
 }}
 Host name:
@@ -326,24 +374,18 @@ def _ensure_duo_analysis_async(game_id):
 
             computed_users, computed_solve_times, _ = _compute_duo_users_and_solve_times(fresh)
 
-            parsed = None
-            if text:
-                try:
-                    parsed = json.loads(text)
-                except Exception:
-                    parsed = None
+            parsed = _try_parse_json(text)
 
             # Merge computed fields with Gemini-evaluated fields.
-            # Gemini is asked to return ONLY coding_style + overall.
+            # Gemini is asked to return ONLY coding_style.
             merged_json = {
                 "users": computed_users,
                 "solve_times": computed_solve_times,
                 "coding_style": (parsed or {}).get("coding_style") if isinstance(parsed, dict) else None,
-                "overall": (parsed or {}).get("overall") if isinstance(parsed, dict) else None,
             }
 
             # If Gemini response isn't valid JSON, preserve text-only view.
-            if merged_json["coding_style"] is None and merged_json["overall"] is None:
+            if merged_json["coding_style"] is None:
                 merged_json = None
 
             analysis_doc = {
@@ -384,6 +426,49 @@ def _ensure_duo_analysis_async(game_id):
                             }
                         },
                     )
+            except Exception:
+                pass
+
+            # Auto-send Cupid's romantic verdict into chat (exactly once).
+            try:
+                if merged_json and isinstance(merged_json, dict):
+                    solve_summary = ((merged_json.get("solve_times") or {}).get("summary") or "").strip()
+                    romantic_verdict = (((merged_json.get("coding_style") or {}).get("comparison") or {}).get("romantic_verdict") or "").strip()
+                    host_name = (((merged_json.get("users") or {}).get("host") or {}).get("username") or "Host").strip()
+                    guest_name = (((merged_json.get("users") or {}).get("guest") or {}).get("username") or "Guest").strip()
+
+                    if romantic_verdict or solve_summary:
+                        # Lock so we only send once even if worker runs again.
+                        now = datetime.utcnow()
+                        locked_send = together_games_collection.find_one_and_update(
+                            {"_id": oid, "analysis_verdict_sent_at": {"$exists": False}},
+                            {"$set": {"analysis_verdict_sent_at": now}},
+                        )
+                        if locked_send:
+                            host_id = str(fresh.get("host_id"))
+                            guest_id = str(fresh.get("guest_id"))
+                            if host_id and guest_id:
+                                text_lines = []
+                                if romantic_verdict:
+                                    text_lines.append(f"Cupid: {romantic_verdict}")
+                                if solve_summary:
+                                    text_lines.append(f"Time check: {solve_summary}")
+                                content = "\n".join(text_lines) if text_lines else "Cupid's analysis is ready."
+
+                                messages_collection.insert_one(
+                                    {
+                                        "sender_id": host_id,
+                                        "receiver_id": guest_id,
+                                        "content": content,
+                                        "message_type": "duo_analysis",
+                                        "meta": {
+                                            "game_id": game_id,
+                                            "host_username": host_name,
+                                            "guest_username": guest_name,
+                                        },
+                                        "created_at": now,
+                                    }
+                                )
             except Exception:
                 pass
         except Exception as e:

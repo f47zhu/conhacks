@@ -92,6 +92,11 @@
   border: 1px solid #eee;
 }
 
+.message-item.duo {
+  background: #ffe2e2;
+  border-color: #ff9494;
+}
+
 .message-item.mine {
   align-self: flex-end;
   background: #e6f4ff;

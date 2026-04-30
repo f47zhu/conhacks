@@ -294,6 +294,104 @@ export default function TogetherSolve({ user, onExit }) {
     }
   };
 
+  const renderCupidAnalysis = (analysisJson) => {
+    if (!analysisJson || typeof analysisJson !== "object") return null;
+    const users = analysisJson.users || {};
+    const hostName = users.host?.username || "Host";
+    const guestName = users.guest?.username || "Guest";
+
+    const solveTimes = analysisJson.solve_times || {};
+    const coding = analysisJson.coding_style || {};
+
+    const host = coding.host || {};
+    const guest = coding.guest || {};
+    const comparison = coding.comparison || {};
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Romantic verdict</div>
+          <div>{comparison.romantic_verdict || "—"}</div>
+        </div>
+
+        <div>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Solve times</div>
+          <div style={{ marginBottom: 6 }}>{solveTimes.summary || "—"}</div>
+          <div className="result-box" style={{ background: "#fff", margin: 0 }}>
+            <div>
+              <strong>{hostName}:</strong>{" "}
+              {solveTimes.host?.seconds != null ? `${solveTimes.host.seconds}s` : "unknown"}
+            </div>
+            <div>
+              <strong>{guestName}:</strong>{" "}
+              {solveTimes.guest?.seconds != null ? `${solveTimes.guest.seconds}s` : "unknown"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Coding style</div>
+        <div className="coding-style-grid">
+          <div className="result-box" style={{ background: "#fff", margin: 0 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{hostName}</div>
+            <div><strong>Approach:</strong> {host.approach || "—"}</div>
+            <div><strong>Time:</strong> {host.time_complexity || "—"}</div>
+            <div><strong>Space:</strong> {host.space_complexity || "—"}</div>
+            {host.summary ? (
+              <div style={{ marginTop: 6 }}>
+                <strong>Summary:</strong> {host.summary}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="result-box" style={{ background: "#fff", margin: "10px 0 0" }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{guestName}</div>
+            <div><strong>Approach:</strong> {guest.approach || "—"}</div>
+            <div><strong>Time:</strong> {guest.time_complexity || "—"}</div>
+            <div><strong>Space:</strong> {guest.space_complexity || "—"}</div>
+            {guest.summary ? (
+              <div style={{ marginTop: 6 }}>
+                <strong>Summary:</strong> {guest.summary}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        
+        {Array.isArray(comparison.key_differences) && comparison.key_differences.length > 0 ? (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Comparison</div>
+              {Array.isArray(comparison.key_differences) && comparison.key_differences.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <strong>Key differences:</strong>
+                  <ul style={{ margin: "6px 0 0 18px" }}>
+                    {comparison.key_differences.slice(0, 6).map((s, i) => (
+                      <li key={`kd-${i}`}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : null}
+      </div>
+    );
+  };
+
+  const analysisJson = useMemo(() => {
+    if (!analysis) return null;
+    if (analysis.json && typeof analysis.json === "object") return analysis.json;
+    const text = analysis.text;
+    if (!text || typeof text !== "string") return null;
+    const trimmed = text.trim();
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("```")) return null;
+    try {
+      const cleaned = trimmed.startsWith("```")
+        ? trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim()
+        : trimmed;
+      return JSON.parse(cleaned);
+    } catch (e) {
+      return null;
+    }
+  }, [analysis]);
+
   if (!session) {
     return (
       <div className="together-wrap">
@@ -433,58 +531,58 @@ export default function TogetherSolve({ user, onExit }) {
             <p className="muted">Waiting for opponent...</p>
           )}
         </div>
+      </div>
 
-        <div className="together-card">
-          <h3>Duo Analysis</h3>
-          {analysis ? (
-            <div className="result-box" style={{ whiteSpace: "pre-wrap" }}>
-              {analysis.json ? (
-                <pre style={{ margin: 0 }}>{JSON.stringify(analysis.json, null, 2)}</pre>
-              ) : (
-                <pre style={{ margin: 0 }}>{analysis.text || "Analysis available."}</pre>
-              )}
-            </div>
-          ) : analysisStatus === "generating" ? (
-            <p className="muted">Generating analysis…</p>
-          ) : analysisStatus === "error" ? (
-            <p className="muted">
-              Analysis failed to generate.
-              {analysisError ? (
-                <span style={{ display: "block", marginTop: 6, whiteSpace: "pre-wrap" }}>
-                  <strong>Error:</strong> {analysisError}
-                </span>
-              ) : null}
-              {solvedTimeMs !== null && opponentStatus?.solved ? (
-                <span style={{ display: "block", marginTop: 10 }}>
-                  <button
-                    className="secondary"
-                    onClick={async () => {
-                      try {
-                        const resp = await fetch(`/api/together/${gameId}/analysis/retry`, {
-                          method: "PUT",
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
-                        const data = await resp.json();
-                        if (!resp.ok) {
-                          setSubmitStatus(data.error || "Unable to retry analysis.");
-                          return;
-                        }
-                        setSubmitStatus("Retry queued.");
-                        setAnalysisStatus("generating");
-                      } catch (e) {
-                        setSubmitStatus("Unable to retry analysis.");
+      <div className="together-card">
+        <h3>Cupid's Analysis</h3>
+        {analysis ? (
+          <div className="result-box" style={{ whiteSpace: "pre-wrap" }}>
+            {analysisJson ? (
+              renderCupidAnalysis(analysisJson)
+            ) : (
+              <pre style={{ margin: 0 }}>{analysis.text || "Analysis available."}</pre>
+            )}
+          </div>
+        ) : analysisStatus === "generating" ? (
+          <p className="muted">Generating analysis…</p>
+        ) : analysisStatus === "error" ? (
+          <p className="muted">
+            Analysis failed to generate.
+            {analysisError ? (
+              <span style={{ display: "block", marginTop: 6, whiteSpace: "pre-wrap" }}>
+                <strong>Error:</strong> {analysisError}
+              </span>
+            ) : null}
+            {solvedTimeMs !== null && opponentStatus?.solved ? (
+              <span style={{ display: "block", marginTop: 10 }}>
+                <button
+                  className="secondary"
+                  onClick={async () => {
+                    try {
+                      const resp = await fetch(`/api/together/${gameId}/analysis/retry`, {
+                        method: "PUT",
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      const data = await resp.json();
+                      if (!resp.ok) {
+                        setSubmitStatus(data.error || "Unable to retry analysis.");
+                        return;
                       }
-                    }}
-                  >
-                    Retry analysis
-                  </button>
-                </span>
-              ) : null}
-            </p>
-          ) : (
-            <p className="muted">Analysis will appear once both players solve.</p>
-          )}
-        </div>
+                      setSubmitStatus("Retry queued.");
+                      setAnalysisStatus("generating");
+                    } catch (e) {
+                      setSubmitStatus("Unable to retry analysis.");
+                    }
+                  }}
+                >
+                  Retry analysis
+                </button>
+              </span>
+            ) : null}
+          </p>
+        ) : (
+          <p className="muted">Analysis will appear once both players solve.</p>
+        )}
       </div>
     </div>
   );

@@ -25,6 +25,12 @@
   gap: 14px;
 }
 
+.coding-style-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 .problem-description {
   margin-top: 12px;
 }
