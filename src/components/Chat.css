@@ -137,6 +137,31 @@
   padding: 0 12px 12px;
 }
 
+.duo-picker {
+  border-top: 1px solid #eee;
+  padding: 10px 12px 12px;
+  background: #fff;
+}
+
+.duo-picker-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 320px) minmax(140px, 180px) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.duo-picker-row input,
+.duo-picker-row select {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 0;
+}
+
+.duo-picker-row button {
+  white-space: nowrap;
+}
+
 .chat-empty {
   margin: auto;
   color: #666;

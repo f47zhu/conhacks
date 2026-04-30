@@ -14,6 +14,10 @@ export default function TogetherSolve({ user, onExit }) {
   const [opponentCode, setOpponentCode] = useState(null);
   const [showOpponentCode, setShowOpponentCode] = useState(false);
   const [gameLoaded, setGameLoaded] = useState(false);
+  const [analysisStatus, setAnalysisStatus] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [gameStatus, setGameStatus] = useState("active");
+  const [cancelledBy, setCancelledBy] = useState(null);
 
   const token = useMemo(() => localStorage.getItem("token"), []);
 
@@ -182,6 +186,10 @@ export default function TogetherSolve({ user, onExit }) {
         if (!response.ok) return;
 
         const data = await response.json();
+        setGameStatus(data.game_status || "active");
+        setCancelledBy(data.cancelled_by || null);
+        setAnalysisStatus(data.analysis_status || null);
+        setAnalysis(data.analysis || null);
         const currentUserId = String(user?.id || "");
 
         for (const [userId, playerData] of Object.entries(data.players)) {
@@ -212,6 +220,10 @@ export default function TogetherSolve({ user, onExit }) {
 
   const submitAttempt = async () => {
     if (!problem) return;
+    if (gameStatus === "cancelled") {
+      setSubmitStatus("This duo game was cancelled.");
+      return;
+    }
     if (solvedTimeMs !== null) {
       setSubmitStatus("You already solved this challenge. Stopwatch is locked.");
       return;
@@ -311,6 +323,11 @@ export default function TogetherSolve({ user, onExit }) {
           <button className="secondary" onClick={onExit}>Exit</button>
         </div>
         <p className="muted">Session: {session.id}</p>
+        {gameStatus === "cancelled" && (
+          <p className="muted" style={{ color: "#b42318" }}>
+            This game was cancelled{cancelledBy ? ` by ${cancelledBy}` : ""}.
+          </p>
+        )}
       </div>
 
       <div className="together-grid">
@@ -329,9 +346,40 @@ export default function TogetherSolve({ user, onExit }) {
 
         <div className="together-card">
           <h3>Your Attempt</h3>
-          <textarea value={code} onChange={(e) => setCode(e.target.value)} disabled={solvedTimeMs !== null} />
+          <textarea
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            disabled={solvedTimeMs !== null || gameStatus === "cancelled"}
+          />
           <div className="row">
-            <button onClick={submitAttempt} disabled={solvedTimeMs !== null}>Submit</button>
+            <button onClick={submitAttempt} disabled={solvedTimeMs !== null || gameStatus === "cancelled"}>
+              Submit
+            </button>
+            {gameStatus !== "cancelled" && solvedTimeMs === null && (
+              <button
+                className="secondary"
+                onClick={async () => {
+                  try {
+                    setSubmitStatus("Cancelling...");
+                    const resp = await fetch(`/api/together/${gameId}/cancel`, {
+                      method: "PUT",
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                      setSubmitStatus(data.error || "Unable to cancel.");
+                      return;
+                    }
+                    setSubmitStatus("Cancelled.");
+                    setGameStatus("cancelled");
+                  } catch (e) {
+                    setSubmitStatus("Unable to cancel.");
+                  }
+                }}
+              >
+                Cancel game
+              </button>
+            )}
           </div>
           {submitStatus && <p className="muted">{submitStatus}</p>}
           <div className="result-box">
@@ -381,6 +429,25 @@ export default function TogetherSolve({ user, onExit }) {
             </>
           ) : (
             <p className="muted">Waiting for opponent...</p>
+          )}
+        </div>
+
+        <div className="together-card">
+          <h3>Duo Analysis</h3>
+          {analysis ? (
+            <div className="result-box" style={{ whiteSpace: "pre-wrap" }}>
+              {analysis.json ? (
+                <pre style={{ margin: 0 }}>{JSON.stringify(analysis.json, null, 2)}</pre>
+              ) : (
+                <pre style={{ margin: 0 }}>{analysis.text || "Analysis available."}</pre>
+              )}
+            </div>
+          ) : analysisStatus === "generating" ? (
+            <p className="muted">Generating analysis…</p>
+          ) : analysisStatus === "error" ? (
+            <p className="muted">Analysis failed to generate.</p>
+          ) : (
+            <p className="muted">Analysis will appear once both players solve.</p>
           )}
         </div>
       </div>

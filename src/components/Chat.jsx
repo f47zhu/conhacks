@@ -11,6 +11,11 @@ export default function Chat({ user, initialChatUser }) {
   const [loading, setLoading] = useState(false);
   const [sendError, setSendError] = useState("");
   const [duoStatuses, setDuoStatuses] = useState({});
+  const [duoPickerOpen, setDuoPickerOpen] = useState(false);
+  const [duoProblems, setDuoProblems] = useState([]);
+  const [duoProblemQuery, setDuoProblemQuery] = useState("");
+  const [duoProblemId, setDuoProblemId] = useState("");
+  const [duoRandomDifficulty, setDuoRandomDifficulty] = useState("any"); // any|easy|medium|hard
 
   const token = useMemo(() => localStorage.getItem("token"), []);
 
@@ -167,14 +172,27 @@ export default function Chat({ user, initialChatUser }) {
 
     try {
       setSendError("");
-      const problemsResponse = await fetch("/api/problems");
-      const problemsData = await problemsResponse.json();
-      if (!problemsResponse.ok || !Array.isArray(problemsData) || problemsData.length === 0) {
-        setSendError("Unable to create invite: no problems available.");
-        return;
+      let problem = null;
+
+      if (duoProblemId === "__random__") {
+        const pool = duoProblems.filter((p) => {
+          if (!p?._id) return false;
+          if (duoRandomDifficulty === "any") return true;
+          return String(p.difficulty || "").toLowerCase() === duoRandomDifficulty;
+        });
+        if (pool.length === 0) {
+          setSendError("No problems match that difficulty. Try a different difficulty.");
+          return;
+        }
+        problem = pool[Math.floor(Math.random() * pool.length)];
+      } else {
+        problem = duoProblems.find((p) => p._id === duoProblemId);
       }
 
-      const randomProblem = problemsData[Math.floor(Math.random() * problemsData.length)];
+      if (!problem?._id) {
+        setSendError("Pick a problem (or Random) before sending a Duo invite.");
+        return;
+      }
       const minutes = 20;
       const startAt = Date.now();
 
@@ -185,7 +203,7 @@ export default function Chat({ user, initialChatUser }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          problem_id: randomProblem._id,
+          problem_id: problem._id,
           guest_id: selectedChatUser.id,
           minutes,
         }),
@@ -200,7 +218,7 @@ export default function Chat({ user, initialChatUser }) {
       const duoUrl = new URL(`${window.location.origin}/`);
       duoUrl.searchParams.set("page", "together");
       duoUrl.searchParams.set("session", gameId);
-      duoUrl.searchParams.set("problemId", randomProblem._id);
+      duoUrl.searchParams.set("problemId", problem._id);
       duoUrl.searchParams.set("minutes", String(minutes));
       duoUrl.searchParams.set("start", String(startAt));
       duoUrl.searchParams.set("host", user.id);
@@ -214,12 +232,12 @@ export default function Chat({ user, initialChatUser }) {
         },
         body: JSON.stringify({
           receiver_id: selectedChatUser.id,
-          content: `Duo invite: ${randomProblem.title}`,
+          content: `Duo invite: ${problem.title}`,
           message_type: "duo_invite",
           meta: {
             game_id: gameId,
-            problem_id: randomProblem._id,
-            problem_title: randomProblem.title,
+            problem_id: problem._id,
+            problem_title: problem.title,
             minutes,
             invite_url: duoUrl.toString(),
           },
@@ -233,11 +251,38 @@ export default function Chat({ user, initialChatUser }) {
 
       setMessages((current) => [...current, data]);
       fetchConversations();
+      setDuoPickerOpen(false);
     } catch (error) {
       console.error("Error sending duo invite:", error);
       setSendError("Unable to send duo invite.");
     }
   };
+
+  const ensureDuoProblemsLoaded = async () => {
+    if (duoProblems.length > 0) return;
+    try {
+      setLoading(true);
+      const problemsResponse = await fetch("/api/problems");
+      const problemsData = await problemsResponse.json();
+      if (!problemsResponse.ok || !Array.isArray(problemsData) || problemsData.length === 0) {
+        setSendError("No problems available for Duo invites.");
+        setLoading(false);
+        return;
+      }
+      setDuoProblems(problemsData);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading problems:", error);
+      setSendError("Unable to load problems for Duo invites.");
+      setLoading(false);
+    }
+  };
+
+  const visibleDuoProblems = useMemo(() => {
+    const q = duoProblemQuery.trim().toLowerCase();
+    if (!q) return duoProblems;
+    return duoProblems.filter((p) => (p.title || "").toLowerCase().includes(q));
+  }, [duoProblems, duoProblemQuery]);
 
   return (
     <div className="chat-page">
@@ -303,12 +348,22 @@ export default function Chat({ user, initialChatUser }) {
 
                 const status = duoStatuses[message.meta.game_id];
                 let statusText = "Pending...";
-                if (status?.players) {
+                if (status?.game_status === "cancelled") {
+                  statusText = "Cancelled";
+                } else if (status?.players) {
                   const solvedCount = Object.values(status.players).filter((player) => player.solved).length;
                   if (solvedCount === 2) statusText = "Both solved";
                   else if (solvedCount === 1) statusText = "One solved";
                   else statusText = "In progress";
                 }
+
+                const analysisStatus = message.meta?.analysis_status || "none";
+                const analysis = message.meta?.analysis || null;
+                const analysisSummary =
+                  analysis?.solve_times?.summary ||
+                  analysis?.overall?.verdict ||
+                  analysis?.text ||
+                  null;
 
                 return (
                   <div
@@ -319,6 +374,15 @@ export default function Chat({ user, initialChatUser }) {
                     <p><i>{message.meta.problem_title || "Random Problem"}</i></p>
                     <p><i>Status: {statusText}</i></p>
                     <p><b><a href={message.meta.invite_url}>Open challenge</a></b></p>
+                    {analysisStatus === "generating" && (
+                      <p className="muted"><i>Analysis: generating…</i></p>
+                    )}
+                    {analysisStatus === "done" && analysisSummary && (
+                      <div className="result-box" style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Gemini Analysis</div>
+                        <div>{analysisSummary}</div>
+                      </div>
+                    )}
                     <span>{new Date(message.created_at).toLocaleString()}</span>
                   </div>
                 );
@@ -333,10 +397,65 @@ export default function Chat({ user, initialChatUser }) {
                 placeholder="Type a message"
               />
               <button type="submit">Send</button>
-              <button type="button" onClick={handleSendDuoInvite}>
+              <button
+                type="button"
+                onClick={async () => {
+                  setSendError("");
+                  const next = !duoPickerOpen;
+                  setDuoPickerOpen(next);
+                  if (next) await ensureDuoProblemsLoaded();
+                }}
+              >
                 Duo
               </button>
             </form>
+            {duoPickerOpen && (
+              <div className="duo-picker">
+                <div className="duo-picker-row">
+                  <input
+                    type="text"
+                    value={duoProblemQuery}
+                    onChange={(e) => setDuoProblemQuery(e.target.value)}
+                    placeholder="Search problem title…"
+                  />
+                  <select
+                    value={duoProblemId}
+                    onChange={(e) => setDuoProblemId(e.target.value)}
+                  >
+                    <option value="">Select a problem…</option>
+                    <option value="__random__">Random (choose difficulty)</option>
+                    {visibleDuoProblems.slice(0, 50).map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.title}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={duoRandomDifficulty}
+                    onChange={(e) => setDuoRandomDifficulty(e.target.value)}
+                    disabled={duoProblemId !== "__random__"}
+                    title={duoProblemId === "__random__" ? "Random difficulty" : "Select Random to enable"}
+                  >
+                    <option value="any">Any</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                  <button type="button" onClick={handleSendDuoInvite} disabled={!duoProblemId}>
+                    Invite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuoPickerOpen(false);
+                      setDuoProblemQuery("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             {sendError && <div className="chat-send-error">{sendError}</div>}
           </>
         ) : (
