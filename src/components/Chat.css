@@ -120,6 +120,12 @@
   padding: 8px;
 }
 
+.chat-send-error {
+  color: #cf1322;
+  font-size: 12px;
+  padding: 0 12px 12px;
+}
+
 .chat-empty {
   margin: auto;
   color: #666;

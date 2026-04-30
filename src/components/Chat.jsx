@@ -9,6 +9,7 @@ export default function Chat({ user, initialChatUser }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sendError, setSendError] = useState("");
 
   const token = useMemo(() => localStorage.getItem("token"), []);
 
@@ -92,6 +93,7 @@ export default function Chat({ user, initialChatUser }) {
     setSelectedChatUser(normalized);
     setSearchResults([]);
     setSearchQuery("");
+    setSendError("");
   };
 
   const handleSendMessage = async (e) => {
@@ -99,6 +101,7 @@ export default function Chat({ user, initialChatUser }) {
     if (!selectedChatUser || !messageText.trim()) return;
 
     try {
+      setSendError("");
       const response = await fetch("/api/chat/messages", {
         method: "POST",
         headers: {
@@ -111,13 +114,17 @@ export default function Chat({ user, initialChatUser }) {
         }),
       });
       const data = await response.json();
-      if (!response.ok) return;
+      if (!response.ok) {
+        setSendError(data.error || "Unable to send message.");
+        return;
+      }
 
       setMessages((current) => [...current, data]);
       setMessageText("");
       fetchConversations();
     } catch (error) {
       console.error("Error sending message:", error);
+      setSendError("Unable to send message.");
     }
   };
 
@@ -189,6 +196,7 @@ export default function Chat({ user, initialChatUser }) {
               />
               <button type="submit">Send</button>
             </form>
+            {sendError && <div className="chat-send-error">{sendError}</div>}
           </>
         ) : (
           <div className="chat-empty">Select a conversation or search a user to start chatting.</div>

@@ -9,6 +9,8 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
   const [loading, setLoading] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [activeTab, setActiveTab] = useState("leaderboard"); // 'leaderboard' or 'search'
+  const [messageBlocked, setMessageBlocked] = useState(false);
+  const [messageBlockReason, setMessageBlockReason] = useState("");
 
   useEffect(() => {
     if (activeTab === "leaderboard") {
@@ -54,10 +56,74 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
       const data = await response.json();
       setUserProfile(data);
       setSelectedUser(userId);
+      await evaluateMessageAccess(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching user profile:", error);
       setLoading(false);
+    }
+  };
+
+  const evaluateMessageAccess = async (profileData) => {
+    if (!profileData || profileData.id === currentUserId) {
+      setMessageBlocked(false);
+      setMessageBlockReason("");
+      return;
+    }
+
+    const requiresSolve = !!profileData.profile?.restrictMessagesToFavouriteProblemSolvers;
+    const favouriteProblemId = profileData.profile?.favouriteProblemId;
+    const favouriteProblemLabel =
+      profileData.profile?.favouriteProblemTitle ||
+      profileData.profile?.favouriteProblem ||
+      "their favourite problem";
+
+    if (!requiresSolve || !favouriteProblemId) {
+      setMessageBlocked(false);
+      setMessageBlockReason("");
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setMessageBlocked(true);
+        setMessageBlockReason(`You must solve ${favouriteProblemLabel} before messaging this user.`);
+        return;
+      }
+
+      const response = await fetch(
+        `/api/submissions?problem_id=${encodeURIComponent(favouriteProblemId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data)) {
+        setMessageBlocked(true);
+        setMessageBlockReason(`You must solve ${favouriteProblemLabel} before messaging this user.`);
+        return;
+      }
+
+      const solvedFavourite = data.some(
+        (submission) =>
+          typeof submission.total === "number" &&
+          submission.total > 0 &&
+          submission.passed === submission.total
+      );
+
+      setMessageBlocked(!solvedFavourite);
+      setMessageBlockReason(
+        solvedFavourite
+          ? ""
+          : `You must solve ${favouriteProblemLabel} before messaging this user.`
+      );
+    } catch (error) {
+      console.error("Error checking message restrictions:", error);
+      setMessageBlocked(true);
+      setMessageBlockReason(`You must solve ${favouriteProblemLabel} before messaging this user.`);
     }
   };
 
@@ -150,10 +216,10 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
                 <p>{userProfile.profile.elo}</p>
               </div>
             )}
-            {userProfile.profile?.favouriteProblem && (
+            {(userProfile.profile?.favouriteProblemTitle || userProfile.profile?.favouriteProblem) && (
               <div className="profile-field">
                 <strong>Favourite Problem:</strong>
-                <p>{userProfile.profile.favouriteProblem}</p>
+                <p>{userProfile.profile.favouriteProblemTitle || userProfile.profile.favouriteProblem}</p>
               </div>
             )}
           </div>
@@ -177,19 +243,19 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
                 {userProfile.stats?.accepted || 0}
               </span>
             </div>
-          </div>
-          {userProfile.stats?.attempts > 0 && (
-            <div className="acceptance-rate">
-              <p>
-                Acceptance Rate:{" "}
-                {(
-                  ((userProfile.stats?.accepted || 0) / userProfile.stats?.attempts) *
-                  100
-                ).toFixed(1)}
+            <div className="stat-item">
+              <span className="stat-label">Acceptance Rate</span>
+              <span className="stat-value">
+                {userProfile.stats?.attempts > 0
+                  ? (
+                      ((userProfile.stats?.accepted || 0) / userProfile.stats?.attempts) *
+                      100
+                    ).toFixed(1)
+                  : 0}
                 %
-              </p>
+              </span>
             </div>
-          )}
+          </div>
           <p className="member-since">
             Member since{" "}
             {new Date(userProfile.created_at).toLocaleDateString()}
@@ -199,6 +265,7 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
             <br />
               <button
                 className="search-btn"
+                disabled={messageBlocked}
                 onClick={() =>
                   onStartChatWithUser({
                     id: userProfile.id,
@@ -208,6 +275,11 @@ export default function UserProfiles({ currentUserId, onStartChatWithUser }) {
               >
                 Message {userProfile.username}
               </button>
+              {messageBlocked && (
+                <p className="no-results" style={{ marginTop: "10px" }}>
+                  {messageBlockReason}
+                </p>
+              )}
             </>
           )}
         </div>

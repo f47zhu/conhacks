@@ -14,12 +14,30 @@ const getDefaultProfile = (username = "", age = "") => ({
   favouriteProblemTopics: "",
   elo: "",
   favouriteProblem: "",
+  favouriteProblemId: "",
+  favouriteProblemTitle: "",
+  restrictMessagesToFavouriteProblemSolvers: false,
 });
 
 export default function DatingProfile({ user, onProfileUpdated }) {
   const [profile, setProfile] = useState(getDefaultProfile(user.username || "", user.age || ""));
   const [savedMessage, setSavedMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [problems, setProblems] = useState([]);
+
+  useEffect(() => {
+    const fetchProblems = async () => {
+      try {
+        const response = await fetch("/api/problems");
+        const data = await response.json();
+        if (!response.ok) return;
+        setProblems(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error loading problems for dropdown:", error);
+      }
+    };
+    fetchProblems();
+  }, []);
 
   useEffect(() => {
     // Load profile from user object (stored in MongoDB)
@@ -37,6 +55,9 @@ export default function DatingProfile({ user, onProfileUpdated }) {
         favouriteProblemTopics: user.profile.favouriteProblemTopics || "",
         elo: user.profile.elo || "",
         favouriteProblem: user.profile.favouriteProblem || "",
+        favouriteProblemId: user.profile.favouriteProblemId || "",
+        favouriteProblemTitle: user.profile.favouriteProblemTitle || user.profile.favouriteProblem || "",
+        restrictMessagesToFavouriteProblemSolvers: !!user.profile.restrictMessagesToFavouriteProblemSolvers,
       });
     } else {
       setProfile(getDefaultProfile(user.username || "", user.age || ""));
@@ -48,6 +69,27 @@ export default function DatingProfile({ user, onProfileUpdated }) {
       return;
     }
     setProfile((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateFavouriteProblem = (problemId) => {
+    if (!problemId) {
+      setProfile((current) => ({
+        ...current,
+        favouriteProblemId: "",
+        favouriteProblemTitle: "",
+        favouriteProblem: "",
+      }));
+      return;
+    }
+
+    const selectedProblem = problems.find((problem) => problem._id === problemId);
+    const selectedTitle = selectedProblem?.title || "";
+    setProfile((current) => ({
+      ...current,
+      favouriteProblemId: problemId,
+      favouriteProblemTitle: selectedTitle,
+      favouriteProblem: selectedTitle,
+    }));
   };
 
   const handleSave = async (e) => {
@@ -75,6 +117,9 @@ export default function DatingProfile({ user, onProfileUpdated }) {
             favouriteProblemTopics: profile.favouriteProblemTopics,
             elo: profile.elo,
             favouriteProblem: profile.favouriteProblem,
+            favouriteProblemId: profile.favouriteProblemId,
+            favouriteProblemTitle: profile.favouriteProblemTitle,
+            restrictMessagesToFavouriteProblemSolvers: profile.restrictMessagesToFavouriteProblemSolvers,
           }
         })
       });
@@ -243,13 +288,35 @@ export default function DatingProfile({ user, onProfileUpdated }) {
 
           <div className="form-group">
             <label htmlFor="favourite-problem">Favourite Problem</label>
-            <textarea
+            <select
               id="favourite-problem"
-              value={profile.favouriteProblem}
-              onChange={(e) => updateField("favouriteProblem", e.target.value)}
-              placeholder="Example: Two Sum, Longest Substring Without Repeating Characters"
-              rows={3}
-            />
+              value={profile.favouriteProblemId}
+              onChange={(e) => updateFavouriteProblem(e.target.value)}
+            >
+              <option value="">Select a favourite problem</option>
+              {problems.map((problemOption) => (
+                <option key={problemOption._id} value={problemOption._id}>
+                  {problemOption.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="restrict-messages">
+              <input
+                id="restrict-messages"
+                type="checkbox"
+                checked={profile.restrictMessagesToFavouriteProblemSolvers}
+                onChange={(e) =>
+                  updateField(
+                    "restrictMessagesToFavouriteProblemSolvers",
+                    e.target.checked
+                  )
+                }
+              />
+              {" "}Only allow messages from users who solved my favourite problem
+            </label>
           </div>
 
           <div className="profile-actions">

@@ -68,18 +68,16 @@ export default function App() {
     }
   };
 
-  const handleLogin = (token, userData) => {
+  const handleLogin = async (token, userData) => {
     localStorage.setItem('token', token);
-    setUser(userData);
-    setPage('problems');
-    setLoading(false);
+    setLoading(true);
+    await fetchCurrentUser(token);
   };
 
-  const handleRegister = (token, userData) => {
+  const handleRegister = async (token, userData) => {
     localStorage.setItem('token', token);
-    setUser(userData);
-    setPage('problems');
-    setLoading(false);
+    setLoading(true);
+    await fetchCurrentUser(token);
   };
 
   const handleLogout = () => {

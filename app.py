@@ -113,7 +113,10 @@ def register():
                 'dealBreakers': '',
                 'favouriteProblemTopics': '',
                 'elo': '',
-                'favouriteProblem': ''
+                'favouriteProblem': '',
+                'favouriteProblemId': '',
+                'favouriteProblemTitle': '',
+                'restrictMessagesToFavouriteProblemSolvers': False
             }
         }
         
@@ -131,7 +134,8 @@ def register():
                 'id': str(result.inserted_id),
                 'username': username,
                 'email': email,
-                'age': age
+                'age': age,
+                'profile': user.get('profile', {})
             }
         }), 201
     except Exception as e:
@@ -164,7 +168,8 @@ def login():
                 'id': str(user['_id']),
                 'username': user['username'],
                 'email': user['email'],
-                'age': user.get('age')
+                'age': user.get('age'),
+                'profile': user.get('profile', {})
             }
         }), 200
     except Exception as e:
@@ -197,7 +202,9 @@ def update_profile(current_user):
         # Update only allowed fields
         allowed_fields = ['displayName', 'location', 'pronouns', 'occupation',
                          'relationshipGoal', 'bio', 'interests', 'dealBreakers',
-                         'favouriteProblemTopics', 'elo', 'favouriteProblem']
+                         'favouriteProblemTopics', 'elo', 'favouriteProblem',
+                         'favouriteProblemId', 'favouriteProblemTitle',
+                         'restrictMessagesToFavouriteProblemSolvers']
         
         updated_profile = current_user.get('profile', {})
         for field in allowed_fields:
@@ -488,12 +495,29 @@ def send_chat_message(current_user):
         if receiver_id == str(current_user['_id']):
             return jsonify({'error': 'Cannot message yourself'}), 400
 
-        receiver_user = users_collection.find_one({'_id': ObjectId(receiver_id)}, {'_id': 1})
+        receiver_user = users_collection.find_one({'_id': ObjectId(receiver_id)}, {'_id': 1, 'profile': 1})
         if not receiver_user:
             return jsonify({'error': 'Receiver not found'}), 404
 
         if len(content) > 2000:
             return jsonify({'error': 'Message too long (max 2000 characters)'}), 400
+
+        receiver_profile = receiver_user.get('profile', {}) if receiver_user else {}
+        restrict_messages = receiver_profile.get('restrictMessagesToFavouriteProblemSolvers', False)
+        favourite_problem_id = receiver_profile.get('favouriteProblemId')
+        favourite_problem_title = receiver_profile.get('favouriteProblemTitle') or receiver_profile.get('favouriteProblem') or 'their favourite problem'
+
+        if restrict_messages and favourite_problem_id:
+            solved_count = submissions_collection.count_documents({
+                'user_id': str(current_user['_id']),
+                'problem_id': favourite_problem_id,
+                'total': {'$gt': 0},
+                '$expr': {'$eq': ['$passed', '$total']}
+            })
+            if solved_count == 0:
+                return jsonify({
+                    'error': f"You must solve {favourite_problem_title} before messaging this user."
+                }), 403
 
         message = {
             'sender_id': str(current_user['_id']),
