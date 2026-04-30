@@ -128,6 +128,56 @@ export default function Chat({ user, initialChatUser }) {
     }
   };
 
+  const handleSendDuoInvite = async () => {
+    if (!selectedChatUser) return;
+
+    try {
+      setSendError("");
+      const problemsResponse = await fetch("/api/problems");
+      const problemsData = await problemsResponse.json();
+      if (!problemsResponse.ok || !Array.isArray(problemsData) || problemsData.length === 0) {
+        setSendError("Unable to create invite: no problems available.");
+        return;
+      }
+
+      const randomProblem = problemsData[Math.floor(Math.random() * problemsData.length)];
+      const sessionId = crypto.randomUUID();
+      const minutes = 20;
+      const startAt = Date.now();
+      const duoUrl = new URL(`${window.location.origin}/`);
+      duoUrl.searchParams.set("page", "together");
+      duoUrl.searchParams.set("session", sessionId);
+      duoUrl.searchParams.set("problemId", randomProblem._id);
+      duoUrl.searchParams.set("minutes", String(minutes));
+      duoUrl.searchParams.set("start", String(startAt));
+      duoUrl.searchParams.set("host", user.id);
+      duoUrl.searchParams.set("guest", selectedChatUser.id);
+
+      const response = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receiver_id: selectedChatUser.id,
+          content: `Let's duo on ${randomProblem.title}! ${duoUrl.toString()}`,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setSendError(data.error || "Unable to send duo invite.");
+        return;
+      }
+
+      setMessages((current) => [...current, data]);
+      fetchConversations();
+    } catch (error) {
+      console.error("Error sending duo invite:", error);
+      setSendError("Unable to send duo invite.");
+    }
+  };
+
   return (
     <div className="chat-page">
       <aside className="chat-sidebar">
@@ -195,6 +245,9 @@ export default function Chat({ user, initialChatUser }) {
                 placeholder="Type a message"
               />
               <button type="submit">Send</button>
+              <button type="button" onClick={handleSendDuoInvite}>
+                Duo
+              </button>
             </form>
             {sendError && <div className="chat-send-error">{sendError}</div>}
           </>

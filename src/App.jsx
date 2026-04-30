@@ -7,6 +7,7 @@ import Register from "./components/Register";
 import DatingProfile from "./components/DatingProfile";
 import UserProfiles from "./components/UserProfiles";
 import Chat from "./components/Chat";
+import TogetherSolve from "./components/TogetherSolve";
 import logo from "./assets/logo.png";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('problems'); // 'problems', 'users', 'chat', 'dating-profile', 'login', 'register'
   const [chatTargetUser, setChatTargetUser] = useState(null);
+  const [togetherMode, setTogetherMode] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in (token in localStorage)
@@ -25,6 +27,12 @@ export default function App() {
     } else {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isTogether = params.get("page") === "together" && !!params.get("session") && !!params.get("problemId");
+    setTogetherMode(isTogether);
   }, []);
 
   useEffect(() => {
@@ -115,6 +123,25 @@ export default function App() {
         ) : (
           <Register onRegister={handleRegister} onSwitchToLogin={() => setPage('login')} />
         )}
+      </div>
+    );
+  }
+
+  if (togetherMode) {
+    return (
+      <div className="app-container">
+        <div className="app-content">
+          <TogetherSolve
+            user={user}
+            onExit={() => {
+              const url = new URL(window.location.href);
+              url.search = "";
+              window.history.replaceState({}, "", url.toString());
+              setTogetherMode(false);
+              setPage("chat");
+            }}
+          />
+        </div>
       </div>
     );
   }
