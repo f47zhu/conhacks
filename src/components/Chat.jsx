@@ -360,8 +360,8 @@ export default function Chat({ user, initialChatUser }) {
                 const analysisStatus = message.meta?.analysis_status || "none";
                 const analysis = message.meta?.analysis || null;
                 const analysisSummary =
-                  analysis?.solve_times?.summary ||
                   analysis?.coding_style?.comparison?.romantic_verdict ||
+                  analysis?.solve_times?.summary ||
                   analysis?.text ||
                   null;
 
