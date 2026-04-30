@@ -10,6 +10,7 @@ export default function Chat({ user, initialChatUser }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [duoStatuses, setDuoStatuses] = useState({});
 
   const token = useMemo(() => localStorage.getItem("token"), []);
 
@@ -32,6 +33,39 @@ export default function Chat({ user, initialChatUser }) {
 
     return () => window.clearInterval(intervalId);
   }, [selectedChatUser]);
+
+  useEffect(() => {
+    const inviteGameIds = messages
+      .filter((message) => message.message_type === "duo_invite" && message.meta?.game_id)
+      .map((message) => message.meta.game_id);
+    const uniqueGameIds = [...new Set(inviteGameIds)];
+    if (uniqueGameIds.length === 0) return;
+
+    const pollStatuses = async () => {
+      const next = {};
+      for (const gameId of uniqueGameIds) {
+        try {
+          const response = await fetch(`/api/together/${gameId}/status`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const data = await response.json();
+          if (!response.ok) continue;
+          next[gameId] = data;
+        } catch (error) {
+          console.error("Error loading duo status:", error);
+        }
+      }
+      if (Object.keys(next).length > 0) {
+        setDuoStatuses((current) => ({ ...current, ...next }));
+      }
+    };
+
+    pollStatuses();
+    const id = window.setInterval(pollStatuses, 4000);
+    return () => window.clearInterval(id);
+  }, [messages, token]);
 
   const fetchConversations = async () => {
     try {
@@ -141,12 +175,31 @@ export default function Chat({ user, initialChatUser }) {
       }
 
       const randomProblem = problemsData[Math.floor(Math.random() * problemsData.length)];
-      const sessionId = crypto.randomUUID();
       const minutes = 20;
       const startAt = Date.now();
+
+      const createGameResponse = await fetch("/api/together/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          problem_id: randomProblem._id,
+          guest_id: selectedChatUser.id,
+          minutes,
+        }),
+      });
+      const createGameData = await createGameResponse.json();
+      if (!createGameResponse.ok) {
+        setSendError(createGameData.error || "Unable to create duo game.");
+        return;
+      }
+
+      const gameId = createGameData.game_id;
       const duoUrl = new URL(`${window.location.origin}/`);
       duoUrl.searchParams.set("page", "together");
-      duoUrl.searchParams.set("session", sessionId);
+      duoUrl.searchParams.set("session", gameId);
       duoUrl.searchParams.set("problemId", randomProblem._id);
       duoUrl.searchParams.set("minutes", String(minutes));
       duoUrl.searchParams.set("start", String(startAt));
@@ -161,7 +214,15 @@ export default function Chat({ user, initialChatUser }) {
         },
         body: JSON.stringify({
           receiver_id: selectedChatUser.id,
-          content: `Let's duo on ${randomProblem.title}! ${duoUrl.toString()}`,
+          content: `Duo invite: ${randomProblem.title}`,
+          message_type: "duo_invite",
+          meta: {
+            game_id: gameId,
+            problem_id: randomProblem._id,
+            problem_title: randomProblem.title,
+            minutes,
+            invite_url: duoUrl.toString(),
+          },
         }),
       });
       const data = await response.json();
@@ -226,15 +287,42 @@ export default function Chat({ user, initialChatUser }) {
           <>
             <div className="chat-header">{selectedChatUser.username}</div>
             <div className="chat-messages">
-              {messages.map((message) => (
-                <div
-                  key={message._id}
-                  className={`message-item ${message.sender_id === user.id ? "mine" : "theirs"}`}
-                >
-                  <p>{message.content}</p>
-                  <span>{new Date(message.created_at).toLocaleString()}</span>
-                </div>
-              ))}
+              {messages.map((message) => {
+                const isDuoInvite = message.message_type === "duo_invite" && message.meta?.invite_url;
+                if (!isDuoInvite) {
+                  return (
+                    <div
+                      key={message._id}
+                      className={`message-item ${message.sender_id === user.id ? "mine" : "theirs"}`}
+                    >
+                      <p>{message.content}</p>
+                      <span>{new Date(message.created_at).toLocaleString()}</span>
+                    </div>
+                  );
+                }
+
+                const status = duoStatuses[message.meta.game_id];
+                let statusText = "Pending...";
+                if (status?.players) {
+                  const solvedCount = Object.values(status.players).filter((player) => player.solved).length;
+                  if (solvedCount === 2) statusText = "Both solved";
+                  else if (solvedCount === 1) statusText = "One solved";
+                  else statusText = "In progress";
+                }
+
+                return (
+                  <div
+                    key={message._id}
+                    className={`message-item ${message.sender_id === user.id ? "mine" : "theirs"}`}
+                  >
+                    <p><strong>Duo</strong></p>
+                    <p><i>{message.meta.problem_title || "Random Problem"}</i></p>
+                    <p><i>Status: {statusText}</i></p>
+                    <p><b><a href={message.meta.invite_url}>Open challenge</a></b></p>
+                    <span>{new Date(message.created_at).toLocaleString()}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <form className="chat-input-row" onSubmit={handleSendMessage}>

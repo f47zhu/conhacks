@@ -27,6 +27,7 @@ problems_collection = db['problems']
 submissions_collection = db['submissions']
 users_collection = db['users']
 messages_collection = db['messages']
+together_games_collection = db['together_games']
 
 # Authentication Decorator
 def token_required(f):
@@ -462,6 +463,8 @@ def get_chat_messages(current_user, other_user_id):
                 'sender_id': 1,
                 'receiver_id': 1,
                 'content': 1,
+                'message_type': 1,
+                'meta': 1,
                 'created_at': 1
             }
         ).sort('created_at', 1))
@@ -488,6 +491,8 @@ def send_chat_message(current_user):
         data = request.json
         receiver_id = data.get('receiver_id')
         content = (data.get('content') or '').strip()
+        message_type = data.get('message_type', 'text')
+        meta = data.get('meta') if isinstance(data.get('meta'), dict) else None
 
         if not receiver_id or not content:
             return jsonify({'error': 'receiver_id and content are required'}), 400
@@ -523,6 +528,8 @@ def send_chat_message(current_user):
             'sender_id': str(current_user['_id']),
             'receiver_id': receiver_id,
             'content': content,
+            'message_type': message_type,
+            'meta': meta,
             'created_at': datetime.utcnow()
         }
         result = messages_collection.insert_one(message)
@@ -532,6 +539,8 @@ def send_chat_message(current_user):
             'sender_id': message['sender_id'],
             'receiver_id': message['receiver_id'],
             'content': message['content'],
+            'message_type': message['message_type'],
+            'meta': message['meta'],
             'created_at': message['created_at'].isoformat() + 'Z'
         }), 201
     except Exception as e:
@@ -625,5 +634,175 @@ def get_leaderboard():
             leaderboard.append(user)
         
         return jsonify(leaderboard), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Together Games Routes
+@app.route('/api/together/create', methods=['POST'])
+@token_required
+def create_together_game(current_user):
+    """Create a new together game session"""
+    try:
+        data = request.json
+        problem_id = data.get('problem_id')
+        host_id = str(current_user['_id'])
+        guest_id = data.get('guest_id')
+        minutes = int(data.get('minutes', 20))
+        
+        if not problem_id or not guest_id:
+            return jsonify({'error': 'Missing problem_id or guest_id'}), 400
+        
+        # Verify problem exists
+        problem = problems_collection.find_one({'_id': ObjectId(problem_id)})
+        if not problem:
+            return jsonify({'error': 'Problem not found'}), 404
+        
+        # Create game document
+        game = {
+            'problem_id': problem_id,
+            'host_id': host_id,
+            'guest_id': guest_id,
+            'created_at': datetime.utcnow(),
+            'duration_minutes': minutes,
+            'players': {
+                host_id: {
+                    'username': current_user['username'],
+                    'code': None,
+                    'solved': False,
+                    'solved_at': None,
+                    'test_results': None,
+                    'elapsed_ms': None
+                },
+                guest_id: {
+                    'username': None,  # Will be filled when guest joins
+                    'code': None,
+                    'solved': False,
+                    'solved_at': None,
+                    'test_results': None,
+                    'elapsed_ms': None
+                }
+            }
+        }
+        
+        result = together_games_collection.insert_one(game)
+        return jsonify({
+            'game_id': str(result.inserted_id),
+            'message': 'Game created successfully'
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/together/<game_id>', methods=['GET'])
+def get_together_game(game_id):
+    """Get together game details"""
+    try:
+        game = together_games_collection.find_one({'_id': ObjectId(game_id)})
+        if not game:
+            return jsonify({'error': 'Game not found'}), 404
+        
+        game['_id'] = str(game['_id'])
+        game['problem_id'] = str(game['problem_id'])
+        
+        # Get problem details
+        problem = problems_collection.find_one({'_id': ObjectId(game['problem_id'])})
+        if problem:
+            game['problem'] = {
+                '_id': str(problem['_id']),
+                'title': problem.get('title'),
+                'difficulty': problem.get('difficulty'),
+                'description': problem.get('description'),
+                'testCases': problem.get('testCases', [])
+            }
+        
+        return jsonify(game), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/together/<game_id>/solution', methods=['PUT'])
+@token_required
+def submit_together_solution(current_user, game_id):
+    """Submit a solution for together game"""
+    try:
+        game = together_games_collection.find_one({'_id': ObjectId(game_id)})
+        if not game:
+            return jsonify({'error': 'Game not found'}), 404
+        
+        user_id = str(current_user['_id'])
+        if user_id not in game['players']:
+            return jsonify({'error': 'You are not part of this game'}), 403
+        
+        data = request.json
+        code = data.get('code')
+        test_results = data.get('test_results')
+        solved = data.get('solved', False)
+        elapsed_ms = data.get('elapsed_ms')
+        
+        # Update player's solution
+        update_data = {
+            f'players.{user_id}.code': code,
+            f'players.{user_id}.test_results': test_results,
+            f'players.{user_id}.solved': solved
+        }
+        
+        if solved:
+            update_data[f'players.{user_id}.solved_at'] = datetime.utcnow()
+            if elapsed_ms is not None:
+                try:
+                    update_data[f'players.{user_id}.elapsed_ms'] = int(elapsed_ms)
+                except (TypeError, ValueError):
+                    pass
+        
+        # Update player username if not set (for guest)
+        if game['players'][user_id]['username'] is None:
+            update_data[f'players.{user_id}.username'] = current_user['username']
+        
+        together_games_collection.update_one(
+            {'_id': ObjectId(game_id)},
+            {'$set': update_data}
+        )
+        
+        return jsonify({'message': 'Solution submitted'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/together/<game_id>/status', methods=['GET'])
+@token_required
+def get_together_status(current_user, game_id):
+    """Get status of both players in together game"""
+    try:
+        game = together_games_collection.find_one({'_id': ObjectId(game_id)})
+        if not game:
+            return jsonify({'error': 'Game not found'}), 404
+        
+        # Verify user is part of this game
+        user_id = str(current_user['_id'])
+        if user_id not in game['players']:
+            return jsonify({'error': 'You are not part of this game'}), 403
+        
+        # Return player statuses with solution code if both are solved
+        status = {
+            'game_id': str(game['_id']),
+            'players': {}
+        }
+        
+        both_solved = all(p['solved'] for p in game['players'].values())
+        
+        for user_id, player in game['players'].items():
+            player_status = {
+                'username': player['username'],
+                'solved': player['solved'],
+                'solved_at': player['solved_at'].isoformat() if player['solved_at'] else None,
+                'test_results': player['test_results'],
+                'elapsed_ms': player.get('elapsed_ms'),
+                'code': player.get('code')
+            }
+            
+            # Hide code if not both solved (except for current user's own code - always show theirs)
+            if not both_solved and user_id != str(current_user['_id']):
+                player_status['code'] = None
+            
+            status['players'][user_id] = player_status
+        
+        return jsonify(status), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
